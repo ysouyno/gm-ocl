@@ -1,0 +1,25 @@
+diff -r -u lcms2-2.9/include/lcms2.h lcms/include/lcms2.h
+--- lcms2-2.9/include/lcms2.h	2017-11-20 14:59:38.000000000 +0000
++++ lcms/include/lcms2.h	2019-12-07 10:04:39.961350037 +0000
+@@ -26,6 +26,20 @@
+ // Version 2.9rc3
+ //
+ 
++//
++// This part added for GraphicsMagick DLLs
++//
++#ifdef _VISUALC_
++#  if defined(_DLL) && !defined(_LIB)
++     // Using DLLs
++#    define CMS_DLL 1
++#    if defined(_LCMSLIB_)
++       // Building DLL
++#      define CMS_DLL_BUILD 1
++#    endif // defined(_LCMSLIB_)
++#  endif // defined(_DLL) && !defined(_LIB)
++#endif // _VISUALC_
++
+ #ifndef _lcms2_H
+ 
+ // ********** Configuration toggles ****************************************
+Only in lcms2-2.9/m4: lt~obsolete.m4

@@ -1,0 +1,314 @@
+Only in libxml: config.h
+diff -r -u libxml2-2.9.10/encoding.c libxml/encoding.c
+--- libxml2-2.9.10/encoding.c	2019-10-22 13:46:01.000000000 +0000
++++ libxml/encoding.c	2019-12-08 15:27:35.072470506 +0000
+@@ -2389,6 +2389,7 @@
+  *     -2 if the transcoding fails (for *in is not valid utf8 string or
+  *        the result of transformation can't fit into the encoding we want), or
+  */
++#ifdef LIBXML_OUTPUT_ENABLED
+ int
+ xmlCharEncOutput(xmlOutputBufferPtr output, int init)
+ {
+@@ -2707,7 +2708,7 @@
+     }
+     return(ret);
+ }
+-
++#endif
+ /**
+  * xmlCharEncCloseFunc:
+  * @handler:	char encoding transformation data structure
+diff -r -u libxml2-2.9.10/include/libxml/xmlversion.h libxml/include/libxml/xmlversion.h
+--- libxml2-2.9.10/include/libxml/xmlversion.h	2019-10-30 14:14:29.000000000 +0000
++++ libxml/include/libxml/xmlversion.h	2019-12-08 15:27:35.104911541 +0000
+@@ -10,6 +10,13 @@
+ #ifndef __XML_VERSION_H__
+ #define __XML_VERSION_H__
+ 
++/* GraphicsMagick defines _DLL for DLL builds */
++#if !defined(_DLL)
++#  if !defined(LIBXML_STATIC)
++#    define LIBXML_STATIC 1
++#  endif
++#endif
++
+ #include <libxml/xmlexports.h>
+ 
+ #ifdef __cplusplus
+@@ -90,9 +97,11 @@
+  *
+  * Whether the thread support is configured in
+  */
++#if defined(_MT) /* Defined by GraphicsMagick for multi-thread builds */
+ #if 1
+ #define LIBXML_THREAD_ENABLED
+ #endif
++#endif
+ 
+ /**
+  * LIBXML_THREAD_ALLOC_ENABLED:
+@@ -108,7 +117,7 @@
+  *
+  * Whether the DOM like tree manipulation API support is configured in
+  */
+-#if 1
++#if 0
+ #define LIBXML_TREE_ENABLED
+ #endif
+ 
+@@ -117,7 +126,7 @@
+  *
+  * Whether the serialization/saving support is configured in
+  */
+-#if 1
++#if 0
+ #define LIBXML_OUTPUT_ENABLED
+ #endif
+ 
+@@ -135,7 +144,7 @@
+  *
+  * Whether the xmlReader parsing interface is configured in
+  */
+-#if 1
++#if 0
+ #define LIBXML_READER_ENABLED
+ #endif
+ 
+@@ -144,7 +153,7 @@
+  *
+  * Whether the xmlPattern node selection interface is configured in
+  */
+-#if 1
++#if 0
+ #define LIBXML_PATTERN_ENABLED
+ #endif
+ 
+@@ -153,7 +162,7 @@
+  *
+  * Whether the xmlWriter saving interface is configured in
+  */
+-#if 1
++#if 0
+ #define LIBXML_WRITER_ENABLED
+ #endif
+ 
+@@ -189,7 +198,7 @@
+  *
+  * Whether the DTD validation support is configured in
+  */
+-#if 1
++#if 0
+ #define LIBXML_VALID_ENABLED
+ #endif
+ 
+@@ -198,7 +207,7 @@
+  *
+  * Whether the HTML support is configured in
+  */
+-#if 1
++#if 0
+ #define LIBXML_HTML_ENABLED
+ #endif
+ 
+@@ -207,7 +216,7 @@
+  *
+  * Whether the deprecated APIs are compiled in for compatibility
+  */
+-#if 1
++#if 0
+ #define LIBXML_LEGACY_ENABLED
+ #endif
+ 
+@@ -216,7 +225,7 @@
+  *
+  * Whether the Canonicalization support is configured in
+  */
+-#if 1
++#if 0
+ #define LIBXML_C14N_ENABLED
+ #endif
+ 
+@@ -225,7 +234,7 @@
+  *
+  * Whether the Catalog support is configured in
+  */
+-#if 1
++#if 0
+ #define LIBXML_CATALOG_ENABLED
+ #endif
+ 
+@@ -234,7 +243,7 @@
+  *
+  * Whether the SGML Docbook support is configured in
+  */
+-#if 1
++#if 0
+ #define LIBXML_DOCB_ENABLED
+ #endif
+ 
+@@ -243,7 +252,7 @@
+  *
+  * Whether XPath is configured in
+  */
+-#if 1
++#if 0
+ #define LIBXML_XPATH_ENABLED
+ #endif
+ 
+@@ -252,7 +261,7 @@
+  *
+  * Whether XPointer is configured in
+  */
+-#if 1
++#if 0
+ #define LIBXML_XPTR_ENABLED
+ #endif
+ 
+@@ -261,7 +270,7 @@
+  *
+  * Whether XInclude is configured in
+  */
+-#if 1
++#if 0
+ #define LIBXML_XINCLUDE_ENABLED
+ #endif
+ 
+@@ -270,7 +279,7 @@
+  *
+  * Whether iconv support is available
+  */
+-#if 1
++#if 0
+ #define LIBXML_ICONV_ENABLED
+ #endif
+ 
+@@ -288,7 +297,7 @@
+  *
+  * Whether ISO-8859-* support is made available in case iconv is not
+  */
+-#if 1
++#if 0
+ #define LIBXML_ISO8859X_ENABLED
+ #endif
+ 
+@@ -297,7 +306,7 @@
+  *
+  * Whether Debugging module is configured in
+  */
+-#if 1
++#if 0
+ #define LIBXML_DEBUG_ENABLED
+ #endif
+ 
+@@ -324,7 +333,7 @@
+  *
+  * Whether the Unicode related interfaces are compiled in
+  */
+-#if 1
++#if 0
+ #define LIBXML_UNICODE_ENABLED
+ #endif
+ 
+@@ -333,7 +342,7 @@
+  *
+  * Whether the regular expressions interfaces are compiled in
+  */
+-#if 1
++#if 0
+ #define LIBXML_REGEXP_ENABLED
+ #endif
+ 
+@@ -342,7 +351,7 @@
+  *
+  * Whether the automata interfaces are compiled in
+  */
+-#if 1
++#if 0
+ #define LIBXML_AUTOMATA_ENABLED
+ #endif
+ 
+@@ -362,7 +371,7 @@
+  *
+  * Whether the Schemas validation interfaces are compiled in
+  */
+-#if 1
++#if 0
+ #define LIBXML_SCHEMAS_ENABLED
+ #endif
+ 
+@@ -371,7 +380,7 @@
+  *
+  * Whether the Schematron validation interfaces are compiled in
+  */
+-#if 1
++#if 0
+ #define LIBXML_SCHEMATRON_ENABLED
+ #endif
+ 
+@@ -380,7 +389,7 @@
+  *
+  * Whether the module interfaces are compiled in
+  */
+-#if 1
++#if 0
+ #define LIBXML_MODULES_ENABLED
+ /**
+  * LIBXML_MODULE_EXTENSION:
+@@ -395,7 +404,7 @@
+  *
+  * Whether the Zlib support is compiled in
+  */
+-#if 1
++#if 0
+ #define LIBXML_ZLIB_ENABLED
+ #endif
+ 
+@@ -404,7 +413,7 @@
+  *
+  * Whether the Lzma support is compiled in
+  */
+-#if 1
++#if 0
+ #define LIBXML_LZMA_ENABLED
+ #endif
+ 
+diff -r -u libxml2-2.9.10/include/win32config.h libxml/include/win32config.h
+--- libxml2-2.9.10/include/win32config.h	2019-10-22 13:46:01.000000000 +0000
++++ libxml/include/win32config.h	2019-12-08 15:27:35.107047411 +0000
+@@ -95,7 +95,9 @@
+ #define snprintf _snprintf
+ #endif
+ #if _MSC_VER < 1500
+-#define vsnprintf(b,c,f,a) _vsnprintf(b,c,f,a)
++#  if !defined(vsnprintf)
++#    define vsnprintf(b,c,f,a) _vsnprintf(b,c,f,a)
++#  endif
+ #endif
+ #elif defined(__MINGW32__)
+ #define mkdir(p,m) _mkdir(p)
+Only in libxml2-2.9.10/m4: lt~obsolete.m4
+diff -r -u libxml2-2.9.10/parser.c libxml/parser.c
+--- libxml2-2.9.10/parser.c	2019-10-30 13:52:27.000000000 +0000
++++ libxml/parser.c	2019-12-08 15:27:35.154586490 +0000
+@@ -38,7 +38,7 @@
+ #define IN_LIBXML
+ #include "libxml.h"
+ 
+-#if defined(_WIN32) && !defined (__CYGWIN__)
++#if (defined(WIN32) || defined(WIN64)) && !defined (__CYGWIN__)
+ #define XML_DIR_SEP '\\'
+ #else
+ #define XML_DIR_SEP '/'
+diff -r -u libxml2-2.9.10/parserInternals.c libxml/parserInternals.c
+--- libxml2-2.9.10/parserInternals.c	2019-10-22 13:46:01.000000000 +0000
++++ libxml/parserInternals.c	2019-12-08 15:27:35.157196409 +0000
+@@ -10,7 +10,7 @@
+ #define IN_LIBXML
+ #include "libxml.h"
+ 
+-#if defined(_WIN32) && !defined (__CYGWIN__)
++#if (defined(WIN32) || defined(WIN64)) && !defined (__CYGWIN__)
+ #define XML_DIR_SEP '\\'
+ #else
+ #define XML_DIR_SEP '/'

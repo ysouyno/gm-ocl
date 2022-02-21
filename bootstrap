@@ -1,0 +1,25 @@
+#!/bin/sh
+#
+# Execute this script to update the build environment if the version of
+# Automake or Autoconf is changed.
+#
+
+libtoolize --verbose --copy --force
+echo 'm4_include([m4/lt~obsolete.m4])' >> aclocal.m4
+aclocal -I . -I m4
+autoheader
+autoconf
+automake --verbose --add-missing --copy --force-missing
+# Get latest config.guess and config.sub from upstream master since
+# these are often out of date.
+for file in config.guess config.sub
+do
+    echo "$0: getting $file..."
+    wget -q --timeout=5 -O config/$file.tmp \
+      "https://git.savannah.gnu.org/gitweb/?p=gnulib.git;a=blob_plain;f=config/${file};hb=HEAD" \
+      && mv config/$file.tmp config/$file \
+      && chmod a+x config/$file
+    retval=$?
+    rm -f config/$file.tmp
+    test $retval -eq 0 || exit $retval
+done
