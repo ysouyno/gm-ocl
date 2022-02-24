@@ -57,6 +57,9 @@
 /* Define to 1 if you have the `clock_gettime' function. */
 #undef HAVE_CLOCK_GETTIME
 
+/* Define to 1 if you have the <CL/cl.h> header file. */
+#undef HAVE_CL_CL_H
+
 /* define if the compiler supports const_cast<> */
 #undef HAVE_CONST_CAST
 
@@ -195,6 +198,9 @@
 
 /* define if the compiler accepts the new for scoping rules */
 #undef HAVE_NEW_FOR_SCOPING
+
+/* Define to 1 if you have the <OpenCL/cl.h> header file. */
+#undef HAVE_OPENCL_CL_H
 
 /* Define to 1 if you have the `pclose' function. */
 #undef HAVE_PCLOSE

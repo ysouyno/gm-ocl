@@ -3586,6 +3586,15 @@ fi
 if test "$build_modules" != 'no' ; then
    MAGICK_FEATURES="$MAGICK_FEATURES MODULES"
 fi
+
+# Enable support for OpenCL
+no_cl=yes
+AX_HAVE_OPENCL([C])
+if test "X$no_cl" != 'Xyes'; then
+   DELEGATES="$DELEGATES opencl"
+   MAGICK_FEATURES="$MAGICK_FEATURES OpenCL"
+fi
+
 # Remove extraneous spaces from output variables (asthetic)
 DELEGATES=`echo $DELEGATES | sed -e 's/  */ /g'`
 MAGICK_FEATURES=`echo $MAGICK_FEATURES | sed -e 's/  */ /g'`
