@@ -223,9 +223,10 @@ check_PROGRAMS = $(am__EXEEXT_2) $(am__EXEEXT_4) $(am__EXEEXT_5)
 subdir = .
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/m4/acx_pthread.m4 \
-	$(top_srcdir)/m4/libtool.m4 $(top_srcdir)/m4/ltoptions.m4 \
-	$(top_srcdir)/m4/ltsugar.m4 $(top_srcdir)/m4/ltversion.m4 \
-	$(top_srcdir)/m4/lt~obsolete.m4 $(top_srcdir)/m4/pkg.m4 \
+	$(top_srcdir)/m4/ax_check_framework.m4 \
+	$(top_srcdir)/m4/ax_have_opencl.m4 $(top_srcdir)/m4/libtool.m4 \
+	$(top_srcdir)/m4/ltoptions.m4 $(top_srcdir)/m4/ltsugar.m4 \
+	$(top_srcdir)/m4/ltversion.m4 $(top_srcdir)/m4/pkg.m4 \
 	$(top_srcdir)/acinclude.m4 $(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
@@ -1141,14 +1142,14 @@ filters_analyze_la_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC \
 @WITH_MODULES_FALSE@	$(am__DEPENDENCIES_1)
 @WITH_MODULES_TRUE@magick_libGraphicsMagick_la_DEPENDENCIES =  \
 @WITH_MODULES_TRUE@	$(am__DEPENDENCIES_1)
-am__magick_libGraphicsMagick_la_SOURCES_DIST =  \
-	magick/alpha_composite.h magick/analyze.c magick/analyze.h \
-	magick/annotate.c magick/api.h magick/attribute.c \
-	magick/attribute.h magick/average.c magick/average.h \
-	magick/bit_stream.c magick/bit_stream.h magick/blob.c \
-	magick/blob.h magick/cdl.c magick/cdl.h magick/channel.c \
-	magick/channel.h magick/common.h magick/compare.c \
-	magick/compare.h magick/confirm_access.c \
+am__magick_libGraphicsMagick_la_SOURCES_DIST = magick/accelerate.c \
+	magick/accelerate-private.h magick/alpha_composite.h \
+	magick/analyze.c magick/analyze.h magick/annotate.c \
+	magick/api.h magick/attribute.c magick/attribute.h \
+	magick/average.c magick/average.h magick/bit_stream.c \
+	magick/bit_stream.h magick/blob.c magick/blob.h magick/cdl.c \
+	magick/cdl.h magick/channel.c magick/channel.h magick/common.h \
+	magick/compare.c magick/compare.h magick/confirm_access.c \
 	magick/confirm_access.h magick/color.c magick/color.h \
 	magick/color_lookup.c magick/color_lookup.h magick/colormap.c \
 	magick/colormap.h magick/colorspace.c magick/colorspace.h \
@@ -1225,7 +1226,8 @@ am__magick_libGraphicsMagick_la_SOURCES_DIST =  \
 @HasX11_TRUE@	magick/libGraphicsMagick_la-PreRvIcccm.lo \
 @HasX11_TRUE@	magick/libGraphicsMagick_la-widget.lo \
 @HasX11_TRUE@	magick/libGraphicsMagick_la-xwindow.lo
-am__objects_2 = magick/libGraphicsMagick_la-analyze.lo \
+am__objects_2 = magick/libGraphicsMagick_la-accelerate.lo \
+	magick/libGraphicsMagick_la-analyze.lo \
 	magick/libGraphicsMagick_la-annotate.lo \
 	magick/libGraphicsMagick_la-attribute.lo \
 	magick/libGraphicsMagick_la-average.lo \
@@ -1823,6 +1825,7 @@ am__depfiles_remade = Magick++/demo/$(DEPDIR)/analyze-analyze.Po \
 	filters/$(DEPDIR)/analyze_la-analyze.Plo \
 	filters/$(DEPDIR)/magick_libGraphicsMagick_la-analyze.Plo \
 	magick/$(DEPDIR)/libGraphicsMagick_la-PreRvIcccm.Plo \
+	magick/$(DEPDIR)/libGraphicsMagick_la-accelerate.Plo \
 	magick/$(DEPDIR)/libGraphicsMagick_la-analyze.Plo \
 	magick/$(DEPDIR)/libGraphicsMagick_la-animate.Plo \
 	magick/$(DEPDIR)/libGraphicsMagick_la-annotate.Plo \
@@ -2681,6 +2684,7 @@ pdfdir = @pdfdir@
 prefix = @prefix@
 program_transform_name = @program_transform_name@
 psdir = @psdir@
+runstatedir = @runstatedir@
 sbindir = @sbindir@
 sharedstatedir = @sharedstatedir@
 srcdir = @srcdir@
@@ -3707,6 +3711,8 @@ magick_libGraphicsMagick_la_LDFLAGS = \
 
 # Library base sources
 MAGICK_BASE_SRCS = \
+	magick/accelerate.c \
+	magick/accelerate-private.h \
 	magick/alpha_composite.h \
 	magick/analyze.c \
 	magick/analyze.h \
@@ -3872,6 +3878,7 @@ MAGICK_BASE_SRCS = \
 @WIN32_NATIVE_BUILD_TRUE@	magick/nt_feature.h
 
 MAGICK_INCLUDE_HDRS = \
+	magick/accelerate-private.h \
 	magick/api.h \
 	magick/analyze.h \
 	magick/attribute.h \
@@ -5717,6 +5724,8 @@ magick/$(am__dirstamp):
 magick/$(DEPDIR)/$(am__dirstamp):
 	@$(MKDIR_P) magick/$(DEPDIR)
 	@: > magick/$(DEPDIR)/$(am__dirstamp)
+magick/libGraphicsMagick_la-accelerate.lo: magick/$(am__dirstamp) \
+	magick/$(DEPDIR)/$(am__dirstamp)
 magick/libGraphicsMagick_la-analyze.lo: magick/$(am__dirstamp) \
 	magick/$(DEPDIR)/$(am__dirstamp)
 magick/libGraphicsMagick_la-annotate.lo: magick/$(am__dirstamp) \
@@ -6619,6 +6628,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@filters/$(DEPDIR)/analyze_la-analyze.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@filters/$(DEPDIR)/magick_libGraphicsMagick_la-analyze.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@magick/$(DEPDIR)/libGraphicsMagick_la-PreRvIcccm.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@magick/$(DEPDIR)/libGraphicsMagick_la-accelerate.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@magick/$(DEPDIR)/libGraphicsMagick_la-analyze.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@magick/$(DEPDIR)/libGraphicsMagick_la-animate.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@magick/$(DEPDIR)/libGraphicsMagick_la-annotate.Plo@am__quote@ # am--include-marker
@@ -7449,6 +7459,13 @@ filters/analyze_la-analyze.lo: filters/analyze.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='filters/analyze.c' object='filters/analyze_la-analyze.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(filters_analyze_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o filters/analyze_la-analyze.lo `test -f 'filters/analyze.c' || echo '$(srcdir)/'`filters/analyze.c
+
+magick/libGraphicsMagick_la-accelerate.lo: magick/accelerate.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(magick_libGraphicsMagick_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT magick/libGraphicsMagick_la-accelerate.lo -MD -MP -MF magick/$(DEPDIR)/libGraphicsMagick_la-accelerate.Tpo -c -o magick/libGraphicsMagick_la-accelerate.lo `test -f 'magick/accelerate.c' || echo '$(srcdir)/'`magick/accelerate.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) magick/$(DEPDIR)/libGraphicsMagick_la-accelerate.Tpo magick/$(DEPDIR)/libGraphicsMagick_la-accelerate.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='magick/accelerate.c' object='magick/libGraphicsMagick_la-accelerate.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(magick_libGraphicsMagick_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o magick/libGraphicsMagick_la-accelerate.lo `test -f 'magick/accelerate.c' || echo '$(srcdir)/'`magick/accelerate.c
 
 magick/libGraphicsMagick_la-analyze.lo: magick/analyze.c
 @am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(magick_libGraphicsMagick_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT magick/libGraphicsMagick_la-analyze.lo -MD -MP -MF magick/$(DEPDIR)/libGraphicsMagick_la-analyze.Tpo -c -o magick/libGraphicsMagick_la-analyze.lo `test -f 'magick/analyze.c' || echo '$(srcdir)/'`magick/analyze.c
@@ -10351,6 +10368,7 @@ distclean: distclean-am
 	-rm -f filters/$(DEPDIR)/analyze_la-analyze.Plo
 	-rm -f filters/$(DEPDIR)/magick_libGraphicsMagick_la-analyze.Plo
 	-rm -f magick/$(DEPDIR)/libGraphicsMagick_la-PreRvIcccm.Plo
+	-rm -f magick/$(DEPDIR)/libGraphicsMagick_la-accelerate.Plo
 	-rm -f magick/$(DEPDIR)/libGraphicsMagick_la-analyze.Plo
 	-rm -f magick/$(DEPDIR)/libGraphicsMagick_la-animate.Plo
 	-rm -f magick/$(DEPDIR)/libGraphicsMagick_la-annotate.Plo
@@ -10739,6 +10757,7 @@ maintainer-clean: maintainer-clean-am
 	-rm -f filters/$(DEPDIR)/analyze_la-analyze.Plo
 	-rm -f filters/$(DEPDIR)/magick_libGraphicsMagick_la-analyze.Plo
 	-rm -f magick/$(DEPDIR)/libGraphicsMagick_la-PreRvIcccm.Plo
+	-rm -f magick/$(DEPDIR)/libGraphicsMagick_la-accelerate.Plo
 	-rm -f magick/$(DEPDIR)/libGraphicsMagick_la-analyze.Plo
 	-rm -f magick/$(DEPDIR)/libGraphicsMagick_la-animate.Plo
 	-rm -f magick/$(DEPDIR)/libGraphicsMagick_la-annotate.Plo

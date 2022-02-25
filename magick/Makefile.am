@@ -53,6 +53,8 @@ endif
 
 # Library base sources
 MAGICK_BASE_SRCS = \
+	magick/accelerate.c \
+	magick/accelerate-private.h \
 	magick/alpha_composite.h \
 	magick/analyze.c \
 	magick/analyze.h \
@@ -223,6 +225,7 @@ endif # if CYGWIN_BUILD
 endif # if WIN32_NATIVE_BUILD
 
 MAGICK_INCLUDE_HDRS = \
+	magick/accelerate-private.h \
 	magick/api.h \
 	magick/analyze.h \
 	magick/attribute.h \
