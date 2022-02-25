@@ -226,6 +226,8 @@ endif # if WIN32_NATIVE_BUILD
 
 MAGICK_INCLUDE_HDRS = \
 	magick/accelerate-private.h \
+	magick/opencl-private.h \
+	magick/opencl.h \
 	magick/api.h \
 	magick/analyze.h \
 	magick/attribute.h \

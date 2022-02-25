@@ -84,7 +84,7 @@ Include declarations.
 #include "MagickCore/token.h" */
 
 #include "magick/studio.h"
-#include "magick/accelerate-private.h"
+#include "magick/opencl-private.h"
 
 #define MAGICK_MAX(x,y) (((x) >= (y))?(x):(y))
 #define MAGICK_MIN(x,y) (((x) <= (y))?(x):(y))
@@ -179,8 +179,8 @@ static MagickBool checkAccelerateCondition(const Image* image)
   Image
     *filteredImage;
 
-  // MagickCLEnv
-  //   clEnv;
+  MagickCLEnv
+    clEnv;
 
   assert(image != NULL);
   assert(exception != (ExceptionInfo *) NULL);
