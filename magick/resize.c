@@ -40,6 +40,7 @@
 #include "magick/pixel_cache.h"
 #include "magick/resize.h"
 #include "magick/utility.h"
+#include "magick/accelerate-private.h"
 
 /*
   Typedef declarations.
@@ -1398,24 +1399,11 @@ MagickExport Image *ResizeImage(const Image *image,const unsigned long columns,
   if ((columns == image->columns) && (rows == image->rows) && (blur == 1.0))
     return (CloneImage(image,0,0,True,exception));
 
-  resize_image=CloneImage(image,columns,rows,True,exception);
-  if (resize_image == (Image *) NULL)
-    return ((Image *) NULL);
-
-  order=(((double) columns*((size_t) image->rows+rows)) >
-         ((double) rows*((size_t) image->columns+columns)));
-  if (order)
-    source_image=CloneImage(resize_image,columns,image->rows,True,exception);
-  else
-    source_image=CloneImage(resize_image,image->columns,rows,True,exception);
-  if (source_image == (Image *) NULL)
-    return ((Image *) NULL);
-
   /*
     Allocate filter contribution info.
   */
-  x_factor=(double) resize_image->columns/image->columns;
-  y_factor=(double) resize_image->rows/image->rows;
+  x_factor=(double) /*resize_image->*/columns/image->columns;
+  y_factor=(double) /*resize_image->*/rows/image->rows;
   i=(long) DefaultResizeFilter;
   if (filter != UndefinedFilter)
     i=(long) filter;
@@ -1429,6 +1417,25 @@ MagickExport Image *ResizeImage(const Image *image,const unsigned long columns,
                           "Resizing image of size %lux%lu to %lux%lu using %s filter",
                           image->columns,image->rows,columns,rows,
                           ResizeFilterToString((FilterTypes)i));
+
+#if defined(HAVE_OPENCL)
+  resize_image=AccelerateResizeImage(image,columns,rows,/* &filter[i],blur, */exception);
+  if (resize_image != (Image*)NULL)
+    return (resize_image);
+#endif
+
+  resize_image=CloneImage(image,columns,rows,True,exception);
+  if (resize_image == (Image *) NULL)
+    return ((Image *) NULL);
+
+  order=(((double) columns*((size_t) image->rows+rows)) >
+         ((double) rows*((size_t) image->columns+columns)));
+  if (order)
+    source_image=CloneImage(resize_image,columns,image->rows,True,exception);
+  else
+    source_image=CloneImage(resize_image,image->columns,rows,True,exception);
+  if (source_image == (Image *) NULL)
+    return ((Image *) NULL);
 
   x_support=blur*Max(1.0/x_factor,1.0)*filters[i].support;
   y_support=blur*Max(1.0/y_factor,1.0)*filters[i].support;

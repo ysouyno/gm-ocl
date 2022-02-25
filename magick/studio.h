@@ -259,6 +259,15 @@ extern "C" {
 #undef index
 #undef pipe
 
+#if defined(HAVE_CL_CL_H)
+#  include <CL/cl.h>
+#  define HAVE_OPENCL 1
+#endif
+#if defined(HAVE_OPENCL_CL_H)
+#  include <OpenCL/cl.h>
+#  define HAVE_OPENCL 1
+#endif
+
 /*
   If TRIO library is used, remap snprintf and vsnprintf to TRIO equivalents.
 */

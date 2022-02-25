@@ -119,3 +119,4 @@ magick/stamp-h2
 rungm.sh
 utilities/gm
 wand/GraphicsMagickWand-config
+dev.sh
