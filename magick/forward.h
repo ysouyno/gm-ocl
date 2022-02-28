@@ -23,6 +23,8 @@ typedef struct _BlobInfo* _BlobInfoPtr_;
 
 typedef struct _CacheInfo* _CacheInfoPtr_;
 
+typedef struct _CacheInfo CacheInfo; // for opencl
+
 typedef struct _ImageAttribute* _ImageAttributePtr_;
 
 typedef struct _SemaphoreInfo* _SemaphoreInfoPtr_;

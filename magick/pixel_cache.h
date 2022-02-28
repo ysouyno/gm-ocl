@@ -12,6 +12,10 @@
 #define _MAGICK_CACHE_H
 
 #include "magick/forward.h"
+#include "magick/studio.h"
+#if defined(HAVE_OPENCL)
+#include "magick/opencl-private.h"
+#endif
 
 #if defined(__cplusplus) || defined(c_plusplus)
 extern "C" {
@@ -263,6 +267,10 @@ extern "C" {
 #include "magick/pixel_cache-private.h"
 
 #endif /* defined(MAGICK_IMPLEMENTATION) */
+
+#if defined(HAVE_OPENCL)
+  extern MagickExport MagickCLCacheInfo GetCacheInfoOpenCL(CacheInfo*);
+#endif
 
 #if defined(__cplusplus) || defined(c_plusplus)
 }

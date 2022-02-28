@@ -55,6 +55,9 @@ endif
 MAGICK_BASE_SRCS = \
 	magick/accelerate.c \
 	magick/accelerate-private.h \
+	magick/opencl-private.h \
+	magick/opencl.c \
+	magick/opencl.h \
 	magick/alpha_composite.h \
 	magick/analyze.c \
 	magick/analyze.h \

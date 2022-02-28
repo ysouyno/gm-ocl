@@ -68,6 +68,7 @@ typedef enum
   WarningEventMask       = 0x00010000,
   ErrorEventMask         = 0x00020000,
   FatalErrorEventMask    = 0x00040000,
+  AccelerateEvent        = 0x00080000, // TODO
   AllEventsMask          = 0x7FFFFFFF
 } LogEventType;
 

@@ -85,6 +85,7 @@ Include declarations.
 
 #include "magick/studio.h"
 #include "magick/opencl-private.h"
+#include "magick/opencl.h"
 
 #define MAGICK_MAX(x,y) (((x) >= (y))?(x):(y))
 #define MAGICK_MIN(x,y) (((x) <= (y))?(x):(y))
@@ -172,6 +173,24 @@ static MagickBool checkAccelerateCondition(const Image* image)
   return(MagickTrue);
 }
 
+static MagickCLEnv getOpenCLEnvironment(ExceptionInfo* exception)
+{
+  MagickCLEnv
+    clEnv;
+
+  clEnv=GetCurrentOpenCLEnv();
+  if (clEnv == (MagickCLEnv) NULL)
+    return((MagickCLEnv) NULL);
+
+  if (clEnv->enabled == MagickFalse)
+    return((MagickCLEnv) NULL);
+
+  if (InitializeOpenCL(clEnv,exception) == MagickFalse)
+    return((MagickCLEnv) NULL);
+
+  return(clEnv);
+}
+
 /* MagickPrivate */ Image *AccelerateResizeImage(const Image *image,
   const size_t resizedColumns,const size_t resizedRows,
   /* const ResizeFilter *resizeFilter, */ExceptionInfo *exception)
@@ -194,9 +213,9 @@ static MagickBool checkAccelerateCondition(const Image* image)
   //        resizeFilter)) == MagickFalse))
   //   return((Image *) NULL);
 
-  // clEnv=getOpenCLEnvironment(exception);
-  // if (clEnv == (MagickCLEnv) NULL)
-  //   return((Image *) NULL);
+  clEnv=getOpenCLEnvironment(exception);
+  if (clEnv == (MagickCLEnv) NULL)
+    return((Image *) NULL);
 
   // filteredImage=ComputeResizeImage(image,clEnv,resizedColumns,resizedRows,
   //   resizeFilter,exception);

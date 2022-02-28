@@ -199,6 +199,9 @@ typedef struct _CacheInfo
   /* Open file handle for disk cache */
   int file;
 
+  MagickCLCacheInfo opencl;
+  SemaphoreInfo* semaphore;
+
   /* Image file name in form "filename[index]" (for use in logging) */
   char filename[MaxTextExtent];
 
