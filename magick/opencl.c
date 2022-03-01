@@ -101,7 +101,7 @@
 #include "magick/pixel_cache.h"
 #include "magick/blob.h"
 #include "magick/resource.h"
-// #include "magick/accelerate-kernels-private.h"
+#include "magick/accelerate-kernels-private.h"
 
 #if defined(/* MAGICKCORE_OPENCL_SUPPORT */HAVE_OPENCL)
 #if defined(MAGICKCORE_LTDL_DELEGATE)
@@ -2828,8 +2828,8 @@ MagickPrivate MagickBooleanType RecordProfileData(MagickCLDevice device,
       profile_record->kernel_name=name;
       device->profile_records=ResizeQuantumMemory(device->profile_records,(i+2),
         sizeof(*device->profile_records));
-      if (device->profile_records == (KernelProfileRecord *) NULL)
-        // ThrowFatalException(ResourceLimitFatalError,"MemoryAllocationFailed");
+      // if (device->profile_records == (KernelProfileRecord *) NULL)
+      //   ThrowFatalException(ResourceLimitFatalError,"MemoryAllocationFailed");
       device->profile_records[i]=profile_record;
       device->profile_records[i+1]=(KernelProfileRecord) NULL;
     }

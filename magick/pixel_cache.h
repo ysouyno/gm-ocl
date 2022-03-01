@@ -12,7 +12,6 @@
 #define _MAGICK_CACHE_H
 
 #include "magick/forward.h"
-#include "magick/studio.h"
 #if defined(HAVE_OPENCL)
 #include "magick/opencl-private.h"
 #endif
