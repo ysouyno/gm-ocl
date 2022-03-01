@@ -681,7 +681,7 @@ MagickExport void ActivateSemaphoreInfo(SemaphoreInfo **semaphore_info)
       LockMagickMutex();
       if (*semaphore_info == (SemaphoreInfo *) NULL)
         // *semaphore_info=AcquireSemaphoreInfo();
-	AcquireSemaphoreInfo(semaphore_info);
+        AcquireSemaphoreInfo(semaphore_info);
       UnlockMagickMutex();
     }
 }

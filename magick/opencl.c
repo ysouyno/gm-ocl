@@ -290,7 +290,8 @@ static const char *GetOpenCLCacheDirectory()
   if (cache_directory == (char *) NULL)
     {
       if (cache_directory_lock == (SemaphoreInfo *) NULL)
-        ActivateSemaphoreInfo(&cache_directory_lock);
+        // ActivateSemaphoreInfo(&cache_directory_lock);
+        cache_directory_lock=AllocateSemaphoreInfo();
       LockSemaphoreInfo(cache_directory_lock);
       if (cache_directory == (char *) NULL)
         {
@@ -637,7 +638,8 @@ static MagickCLEnv AcquireMagickCLEnv(void)
   if (clEnv != (MagickCLEnv) NULL)
   {
     (void) memset(clEnv,0,sizeof(*clEnv));
-    ActivateSemaphoreInfo(&clEnv->lock);
+    // ActivateSemaphoreInfo(&clEnv->lock);
+    clEnv->lock=AllocateSemaphoreInfo();
     clEnv->cpu_score=MAGICKCORE_OPENCL_UNDEFINED_SCORE;
     clEnv->enabled=MagickFalse;
     option=getenv("MAGICK_OCL_DEVICE");
@@ -1820,7 +1822,8 @@ MagickPrivate MagickCLEnv GetCurrentOpenCLEnv(void)
     return((MagickCLEnv) NULL);
 
   if (openCL_lock == (SemaphoreInfo *) NULL)
-    ActivateSemaphoreInfo(&openCL_lock);
+    // ActivateSemaphoreInfo(&openCL_lock);
+    openCL_lock=AllocateSemaphoreInfo();
 
   LockSemaphoreInfo(openCL_lock);
   if (default_CLEnv == (MagickCLEnv) NULL)
