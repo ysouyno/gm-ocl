@@ -41,6 +41,51 @@ extern MagickExport void
   DestroySemaphore(void),
   InitializeSemaphore(void);
 
+static inline void LockMagickMutex(void)
+{
+#if defined(MAGICKCORE_OPENMP_SUPPORT)
+  if (translation_unit_initialized == MagickFalse)
+    InitializeMagickMutex();
+  omp_set_lock(&translation_unit_mutex);
+#elif defined(MAGICKCORE_THREAD_SUPPORT)
+  {
+    int
+      status;
+
+    status=pthread_mutex_lock(&translation_unit_mutex);
+    if (status != 0)
+      {
+        errno=status;
+        ThrowFatalException(ResourceLimitFatalError,"UnableToLockSemaphore");
+      }
+  }
+#elif defined(MAGICKCORE_WINDOWS_SUPPORT)
+  while (InterlockedCompareExchange(&translation_unit_mutex,1L,0L) != 0)
+    Sleep(10);
+#endif
+}
+
+static inline void UnlockMagickMutex(void)
+{
+#if defined(MAGICKCORE_OPENMP_SUPPORT)
+  omp_unset_lock(&translation_unit_mutex);
+#elif defined(MAGICKCORE_THREAD_SUPPORT)
+  {
+    int
+      status;
+
+    status=pthread_mutex_unlock(&translation_unit_mutex);
+    if (status != 0)
+      {
+        errno=status;
+        ThrowFatalException(ResourceLimitFatalError,"UnableToUnlockSemaphore");
+      }
+  }
+#elif defined(MAGICKCORE_WINDOWS_SUPPORT)
+  InterlockedExchange(&translation_unit_mutex,0L);
+#endif
+}
+
 #if defined(__cplusplus) || defined(c_plusplus)
 }
 #endif

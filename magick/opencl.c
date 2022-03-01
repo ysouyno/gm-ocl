@@ -101,6 +101,7 @@
 #include "magick/pixel_cache.h"
 #include "magick/blob.h"
 #include "magick/resource.h"
+// #include "magick/accelerate-kernels-private.h"
 
 #if defined(/* MAGICKCORE_OPENCL_SUPPORT */HAVE_OPENCL)
 #if defined(MAGICKCORE_LTDL_DELEGATE)
@@ -2641,7 +2642,7 @@ MagickPrivate void OpenCLTerminus()
   if (openCL_library != (MagickLibrary *) NULL)
     {
       if (openCL_library->library != (void *) NULL)
-        (void) lt_dlclose(openCL_library->library);
+        (void) /*lt_dlclose*/dlclose(openCL_library->library);
       openCL_library=(MagickLibrary *) RelinquishMagickMemory(openCL_library);
     }
 }

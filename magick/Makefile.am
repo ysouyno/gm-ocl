@@ -58,6 +58,9 @@ MAGICK_BASE_SRCS = \
 	magick/opencl-private.h \
 	magick/opencl.c \
 	magick/opencl.h \
+	magick/accelerate-kernels-private.h \
+	magick/im_common.c \
+	magick/im_common.h \
 	magick/alpha_composite.h \
 	magick/analyze.c \
 	magick/analyze.h \
@@ -231,6 +234,8 @@ MAGICK_INCLUDE_HDRS = \
 	magick/accelerate-private.h \
 	magick/opencl-private.h \
 	magick/opencl.h \
+	magick/im_common.h \
+	magick/accelerate-kernels-private.h \
 	magick/api.h \
 	magick/analyze.h \
 	magick/attribute.h \

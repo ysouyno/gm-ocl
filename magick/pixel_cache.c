@@ -5174,3 +5174,10 @@ SyncImagePixelsEx(Image *image,ExceptionInfo *exception)
   assert(image->signature == MagickSignature);
   return SyncCacheViewPixels(AccessDefaultCacheView(image),exception);
 }
+
+MagickExport MagickCLCacheInfo
+GetCacheInfoOpenCL(CacheInfo* ci)
+{
+  assert(ci);
+  return ci->opencl;
+}

@@ -31,7 +31,8 @@
   MagickCore token methods.
     (GetNextToken())
   MagickCore memory methods.
-    (AcquireQuantumMemory(), HeapOverflowSanityCheck(), ResizeQuantumMemory())
+    (AcquireQuantumMemory(), HeapOverflowSanityCheckGetSize(),
+    ResizeQuantumMemory())
   MagickCore private string methods.
     (StringToInteger())
   MagickCore image private methods.
@@ -52,7 +53,9 @@
 #define IM_COMMON_H
 
 // #include "MagickCore/magick-config.h"
+#include "magick/studio.h"
 #include "magick/semaphore.h"
+#include "magick/utility.h"
 
 #if defined(__cplusplus) || defined(c_plusplus)
 extern "C" {
@@ -237,16 +240,22 @@ extern MagickExport size_t
   GetNextToken(const char *magick_restrict,const char **magick_restrict,
     const size_t,char *magick_restrict) magick_hot_spot;
 
-static inline MagickBooleanType HeapOverflowSanityCheck(
-  const size_t count,const size_t quantum)
+static inline MagickBooleanType HeapOverflowSanityCheckGetSize(
+  const size_t count,const size_t quantum,size_t *const extent)
 {
+  size_t
+    length;
+
   if ((count == 0) || (quantum == 0))
     return(MagickTrue);
-  if (quantum != ((count*quantum)/count))
+  length=count*quantum;
+  if (quantum != (length/count))
     {
       errno=ENOMEM;
       return(MagickTrue);
     }
+  if (extent != NULL)
+    *extent=length;
   return(MagickFalse);
 }
 
@@ -275,6 +284,10 @@ static inline MagickThreadType GetMagickThreadId(void)
 extern MagickExport void
   *ResizeQuantumMemory(void *,const size_t,const size_t)
     magick_attribute((__malloc__)) magick_alloc_sizes(2,3);
+
+// Copy from GM magick_compat.c
+extern MagickExport void
+  *ResizeMagickMemory(void *memory,const size_t size);
 
 #endif /* HAVE_OPENCL */
 
