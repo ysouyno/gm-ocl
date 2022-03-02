@@ -93,3 +93,13 @@ $ autoreconf
 configure.ac:119: warning: AM_INIT_AUTOMAKE: two- and three-arguments forms are deprecated.  For more info, see:
 configure.ac:119: https://www.gnu.org/software/automake/manual/automake.html#Modernize-AM_005fINIT_005fAUTOMAKE-invocation
 ```
+
+## <2022-03-02 Wed> 在`archlinux`上为`Intel`启用`OpenCL`
+
+``` shellsession
+% lspci | grep VGA
+00:02.0 VGA compatible controller: Intel Corporation Iris Plus Graphics G1 (Ice Lake) (rev 07)
+% clinfo
+Number of platforms                               0
+% sudo pacman -S intel-compute-runtime
+```

@@ -603,7 +603,8 @@ static MagickCLDevice AcquireMagickCLDevice()
   if (device != NULL)
   {
     (void) memset(device,0,sizeof(*device));
-    ActivateSemaphoreInfo(&device->lock);
+    // ActivateSemaphoreInfo(&device->lock);
+    device->lock=AllocateSemaphoreInfo();
     device->score=MAGICKCORE_OPENCL_UNDEFINED_SCORE;
     device->command_queues_index=-1;
     device->enabled=MagickTrue;
@@ -1119,11 +1120,11 @@ static double RunOpenCLBenchmark(MagickBooleanType is_cpu)
         CacheInfo
           *cache_info;
 
-	MagickCLCacheInfo
-	  cl_info;
+        MagickCLCacheInfo
+          cl_info;
 
         cache_info=(CacheInfo *) resizedImage->cache;
-	cl_info=GetCacheInfoOpenCL(cache_info);
+        cl_info=GetCacheInfoOpenCL(cache_info);
         if (cl_info != (MagickCLCacheInfo) NULL)
           openCL_library->clWaitForEvents(cl_info->event_count,
 	    cl_info->events);

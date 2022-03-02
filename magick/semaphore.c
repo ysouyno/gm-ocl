@@ -713,7 +713,7 @@ static void *RelinquishSemaphoreMemory(void *memory)
 {
   if (memory == (void *) NULL)
     return((void *) NULL);
-#if defined(MAGICKCORE_HAVE_POSIX_MEMALIGN)
+#if defined(/*MAGICKCORE_HAVE_POSIX_MEMALIGN*/HAVE_POSIX_MEMALIGN)
   free(memory);
 #elif defined(MAGICKCORE_HAVE__ALIGNED_MALLOC)
   _aligned_free(memory);
