@@ -1127,7 +1127,7 @@ static double RunOpenCLBenchmark(MagickBooleanType is_cpu)
         cl_info=GetCacheInfoOpenCL(cache_info);
         if (cl_info != (MagickCLCacheInfo) NULL)
           openCL_library->clWaitForEvents(cl_info->event_count,
-	    cl_info->events);
+            cl_info->events);
       }
 
     if (i > 0)
@@ -2700,7 +2700,7 @@ MagickPrivate MagickBooleanType OpenCLThrowMagickException(
 
   assert(device != (MagickCLDevice) NULL);
   assert(exception != (ExceptionInfo *) NULL);
-  // assert(exception->signature == MagickCoreSignature);
+  assert(exception->signature == MagickSignature);
   (void) exception;
   status=MagickTrue;
   if (severity != 0)

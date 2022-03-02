@@ -1,6 +1,8 @@
 # `gm-ocl`开发记录
 
-## <2022-02-24 Thu> 增加`--enable-opencl`参数
+## <2022-02-24 Thu>
+
+### 增加`--enable-opencl`参数
 
 拷贝`ImageMagick`中的`m4/ax_have_opencl.m4`，在`configure.ac`中添加：
 
@@ -83,7 +85,9 @@ ImageMagick/m4/ax_have_opencl.m4:94:        AX_CHECK_FRAMEWORK([OpenCL], [
 
 可以删除`configure`文件后再运行`autoreconf`来代替`autoreconf -vif`，这样生成的`configure`可以最大限度的与原`configure`保持一致。
 
-## <2022-02-25 Fri> 关于`AccelerateResizeImage()`的链接问题
+## <2022-02-25 Fri>
+
+### 关于`AccelerateResizeImage()`的链接问题
 
 因为增加了两个新文件`accelerate-private.h`和`accelerate.c`，`AccelerateResizeImage()`就位于其中，因为`magick/Makefile.am`中没有增加这两个文件，所以在`autoreconf`时生成的`Makefile.in`就不知道新增了两个文件，因此在`configure`时生成的`Makefile`中就不会编译`AccelerateResizeImage()`函数，因此出现的链接问题。
 
@@ -94,7 +98,9 @@ configure.ac:119: warning: AM_INIT_AUTOMAKE: two- and three-arguments forms are 
 configure.ac:119: https://www.gnu.org/software/automake/manual/automake.html#Modernize-AM_005fINIT_005fAUTOMAKE-invocation
 ```
 
-## <2022-03-02 Wed> 在`archlinux`上为`Intel`启用`OpenCL`
+## <2022-03-02 Wed>
+
+### 在`archlinux`上为`Intel`启用`OpenCL`
 
 ``` shellsession
 % lspci | grep VGA
@@ -103,3 +109,40 @@ configure.ac:119: https://www.gnu.org/software/automake/manual/automake.html#Mod
 Number of platforms                               0
 % sudo pacman -S intel-compute-runtime
 ```
+
+### 调试`RunOpenCLBenchmark()`时的崩溃问题
+
+发现直接运行`gm display`没有崩溃问题，调试时却经常发生，有时`SIGABRT`，有时`SIGSEGV`，猜测可能是同步问题：
+
+``` c++
+/*
+  We need this to get a proper performance benchmark, the operations
+  are executed asynchronous.
+*/
+if (is_cpu == MagickFalse)
+  {
+    CacheInfo
+      *cache_info;
+
+    MagickCLCacheInfo
+      cl_info;
+
+    cache_info=(CacheInfo *) resizedImage->cache;
+    cl_info=GetCacheInfoOpenCL(cache_info);
+    if (cl_info != (MagickCLCacheInfo) NULL)
+      openCL_library->clWaitForEvents(cl_info->event_count,
+        cl_info->events);
+  }
+
+if (i > 0)
+  StopAccelerateTimer(&timer);
+
+if (bluredImage != (Image *) NULL)
+  DestroyImage(bluredImage);
+if (unsharpedImage != (Image *) NULL)
+  DestroyImage(unsharpedImage);
+if (resizedImage != (Image *) NULL)
+  DestroyImage(resizedImage);
+```
+
+经常遇到的是：`resizedImage`为`0`（`SIGSEGV`），`DestroyImage(resizedImage);`（`SIGABRT`）。

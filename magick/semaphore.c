@@ -727,7 +727,7 @@ MagickExport void RelinquishSemaphoreInfo(SemaphoreInfo **semaphore_info)
 {
   assert(semaphore_info != (SemaphoreInfo **) NULL);
   assert((*semaphore_info) != (SemaphoreInfo *) NULL);
-  // assert((*semaphore_info)->signature == MagickCoreSignature);
+  assert((*semaphore_info)->signature == MagickSignature);
   LockMagickMutex();
 #if defined(MAGICKCORE_OPENMP_SUPPORT)
   omp_destroy_lock((omp_lock_t *) &(*semaphore_info)->mutex);
@@ -747,8 +747,7 @@ MagickExport void RelinquishSemaphoreInfo(SemaphoreInfo **semaphore_info)
 #elif defined(MAGICKCORE_WINDOWS_SUPPORT)
   DeleteCriticalSection(&(*semaphore_info)->mutex);
 #endif
-  // TODO
-  // (*semaphore_info)->signature=(~MagickCoreSignature);
+  (*semaphore_info)->signature=(~MagickSignature);
   *semaphore_info=(SemaphoreInfo *) RelinquishSemaphoreMemory(*semaphore_info);
   UnlockMagickMutex();
 }
