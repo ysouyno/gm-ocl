@@ -28,6 +28,11 @@
 %
 */
 
+
+/*
+  GetAuthenticOpenCLBuffer() is based on ImageMagick/MagickCore/cache.c
+*/
+
 /*
   Include declarations.
 */
@@ -5174,6 +5179,71 @@ SyncImagePixelsEx(Image *image,ExceptionInfo *exception)
   assert(image->signature == MagickSignature);
   return SyncCacheViewPixels(AccessDefaultCacheView(image),exception);
 }
+
+#if defined(HAVE_OPENCL)
+/*
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%                                                                             %
+%                                                                             %
+%                                                                             %
++   G e t A u t h e n t i c O p e n C L B u f f e r                           %
+%                                                                             %
+%                                                                             %
+%                                                                             %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%
+%  GetAuthenticOpenCLBuffer() returns an OpenCL buffer used to execute OpenCL
+%  operations.
+%
+%  The format of the GetAuthenticOpenCLBuffer() method is:
+%
+%      cl_mem GetAuthenticOpenCLBuffer(const Image *image,
+%        MagickCLDevice device,ExceptionInfo *exception)
+%
+%  A description of each parameter follows:
+%
+%    o image: the image.
+%
+%    o device: the device to use.
+%
+%    o exception: return any errors or warnings in this structure.
+%
+*/
+MagickPrivate cl_mem GetAuthenticOpenCLBuffer(const Image *image,
+  MagickCLDevice device,ExceptionInfo *exception)
+{
+  CacheInfo
+    *magick_restrict cache_info;
+
+  assert(image != (const Image *) NULL);
+  assert(device != (const MagickCLDevice) NULL);
+  cache_info=(CacheInfo *) image->cache;
+  if ((cache_info->type == UndefinedCache) || (cache_info->reference_count > 1))
+    {
+      /* SyncImagePixelCache */SyncImagePixelsEx((Image *) image,exception);
+      cache_info=(CacheInfo *) image->cache;
+    }
+  if ((cache_info->type != MemoryCache)/*  || (cache_info->mapped != MagickFalse) */)
+    return((cl_mem) NULL);
+  LockSemaphoreInfo(cache_info->semaphore);
+  if ((cache_info->opencl != (MagickCLCacheInfo) NULL) &&
+      (cache_info->opencl->device->context != device->context))
+    cache_info->opencl=CopyMagickCLCacheInfo(cache_info->opencl);
+  if (cache_info->opencl == (MagickCLCacheInfo) NULL)
+    {
+      assert(cache_info->pixels != (Quantum *) NULL);
+      cache_info->opencl=AcquireMagickCLCacheInfo(device,cache_info->pixels,
+        cache_info->length);
+    }
+  if (cache_info->opencl != (MagickCLCacheInfo) NULL)
+    RetainOpenCLMemObject(cache_info->opencl->buffer);
+  UnlockSemaphoreInfo(cache_info->semaphore);
+  if (cache_info->opencl == (MagickCLCacheInfo) NULL)
+    return((cl_mem) NULL);
+  assert(cache_info->opencl->pixels == cache_info->pixels);
+  return(cache_info->opencl->buffer);
+}
+#endif
 
 MagickExport MagickCLCacheInfo
 GetCacheInfoOpenCL(CacheInfo* ci)

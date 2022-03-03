@@ -209,6 +209,14 @@ typedef struct _StringInfo
     *name;
 } StringInfo;
 
+// Copy form GM resize.c
+typedef struct _FilterInfo
+{
+  double
+    (*function)(const double,const double),
+    support;
+} FilterInfo;
+
 // Copy form GM magick_compat.c
 void *RelinquishMagickMemory(void *);
 

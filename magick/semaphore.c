@@ -32,6 +32,12 @@
 %
 */
 
+
+/*
+  Functions: ActivateSemaphoreInfo(), RelinquishSemaphoreMemory(),
+  RelinquishSemaphoreInfo() are based on ImageMagick/MagickCore/semaphore.c
+*/
+
 /*
   Include declarations.
 */

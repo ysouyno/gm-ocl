@@ -86,6 +86,7 @@ Include declarations.
 #include "magick/studio.h"
 #include "magick/opencl-private.h"
 #include "magick/opencl.h"
+#include "magick/pixel_cache.h"
 
 #define MAGICK_MAX(x,y) (((x) >= (y))?(x):(y))
 #define MAGICK_MIN(x,y) (((x) <= (y))?(x):(y))
@@ -191,9 +192,164 @@ static MagickCLEnv getOpenCLEnvironment(ExceptionInfo* exception)
   return(clEnv);
 }
 
-/* MagickPrivate */ Image *AccelerateResizeImage(const Image *image,
+static Image *ComputeResizeImage(const Image* image,MagickCLEnv clEnv,
   const size_t resizedColumns,const size_t resizedRows,
-  /* const ResizeFilter *resizeFilter, */ExceptionInfo *exception)
+  const FilterInfo *filter_info,const double blur,ExceptionInfo *exception)
+{
+  cl_command_queue
+    queue;
+
+  cl_mem
+    cubicCoefficientsBuffer,
+    filteredImageBuffer,
+    imageBuffer,
+    tempImageBuffer;
+
+  cl_uint
+    number_channels;
+
+  const double
+    *resizeFilterCoefficient;
+
+  float
+    coefficientBuffer[7],
+    xFactor,
+    yFactor;
+
+  MagickBooleanType
+    outputReady;
+
+  MagickCLDevice
+    device;
+
+  MagickSizeType
+    length;
+
+  Image
+    *filteredImage;
+
+  size_t
+    i;
+
+  filteredImage=NULL;
+  imageBuffer=NULL;
+  filteredImageBuffer=NULL;
+  tempImageBuffer=NULL;
+  cubicCoefficientsBuffer=NULL;
+  outputReady=MagickFalse;
+
+  device=RequestOpenCLDevice(clEnv);
+  queue=AcquireOpenCLCommandQueue(device);
+  filteredImage=CloneImage(image,resizedColumns,resizedRows,MagickTrue,
+    exception);
+  if (filteredImage == (Image *) NULL)
+    goto cleanup;
+  // if (filteredImage->number_channels != image->number_channels)
+  //   goto cleanup;
+  imageBuffer=GetAuthenticOpenCLBuffer(image,device,exception);
+  if (imageBuffer == (cl_mem) NULL)
+    goto cleanup;
+  filteredImageBuffer=GetAuthenticOpenCLBuffer(filteredImage,device,exception);
+  if (filteredImageBuffer == (cl_mem) NULL)
+    goto cleanup;
+
+  /* resizeFilterCoefficient=GetResizeFilterCoefficient(resizeFilter);
+  for (i = 0; i < 7; i++)
+    coefficientBuffer[i]=(float) resizeFilterCoefficient[i];
+  cubicCoefficientsBuffer=CreateOpenCLBuffer(device,CL_MEM_COPY_HOST_PTR |
+    CL_MEM_READ_ONLY,sizeof(coefficientBuffer),&coefficientBuffer);
+  if (cubicCoefficientsBuffer == (cl_mem) NULL)
+  {
+    (void) OpenCLThrowMagickException(device,exception,GetMagickModule(),
+      ResourceLimitWarning,"CreateOpenCLBuffer failed.",".");
+    goto cleanup;
+  } */
+
+  // no number_channels in struct _Image in GM
+  // number_channels=(cl_uint) image->number_channels;
+  xFactor=(float) resizedColumns/(float) image->columns;
+  yFactor=(float) resizedRows/(float) image->rows;
+  if (xFactor > yFactor)
+  {
+    length=resizedColumns*image->rows*number_channels;
+    tempImageBuffer=CreateOpenCLBuffer(device,CL_MEM_READ_WRITE,length*
+      sizeof(CLQuantum),(void *) NULL);
+    if (tempImageBuffer == (cl_mem) NULL)
+    {
+      (void) OpenCLThrowMagickException(device,exception,GetMagickModule(),
+        ResourceLimitWarning,"CreateOpenCLBuffer failed.",".");
+      goto cleanup;
+    }
+
+    /* outputReady=resizeHorizontalFilter(device,queue,image,filteredImage,
+      imageBuffer,number_channels,(cl_uint) image->columns,
+      (cl_uint) image->rows,tempImageBuffer,(cl_uint) resizedColumns,
+      (cl_uint) image->rows,resizeFilter,cubicCoefficientsBuffer,xFactor,
+      exception);
+    if (outputReady == MagickFalse)
+      goto cleanup;
+
+    outputReady=resizeVerticalFilter(device,queue,image,filteredImage,
+      tempImageBuffer,number_channels,(cl_uint) resizedColumns,
+      (cl_uint) image->rows,filteredImageBuffer,(cl_uint) resizedColumns,
+      (cl_uint) resizedRows,resizeFilter,cubicCoefficientsBuffer,yFactor,
+      exception);
+    if (outputReady == MagickFalse)
+      goto cleanup; */
+  }
+  else
+  {
+    length=image->columns*resizedRows*number_channels;
+    tempImageBuffer=CreateOpenCLBuffer(device,CL_MEM_READ_WRITE,length*
+      sizeof(CLQuantum),(void *) NULL);
+    if (tempImageBuffer == (cl_mem) NULL)
+    {
+      (void) OpenCLThrowMagickException(device,exception,GetMagickModule(),
+        ResourceLimitWarning,"CreateOpenCLBuffer failed.",".");
+      goto cleanup;
+    }
+
+    /* outputReady=resizeVerticalFilter(device,queue,image,filteredImage,
+      imageBuffer,number_channels,(cl_uint) image->columns,
+      (cl_int) image->rows,tempImageBuffer,(cl_uint) image->columns,
+      (cl_uint) resizedRows,resizeFilter,cubicCoefficientsBuffer,yFactor,
+      exception);
+    if (outputReady == MagickFalse)
+      goto cleanup;
+
+    outputReady=resizeHorizontalFilter(device,queue,image,filteredImage,
+      tempImageBuffer,number_channels,(cl_uint) image->columns,
+      (cl_uint) resizedRows,filteredImageBuffer,(cl_uint) resizedColumns,
+      (cl_uint) resizedRows,resizeFilter,cubicCoefficientsBuffer,xFactor,
+      exception);
+    if (outputReady == MagickFalse)
+      goto cleanup; */
+  }
+
+cleanup:
+
+  if (imageBuffer != (cl_mem) NULL)
+    ReleaseOpenCLMemObject(imageBuffer);
+  if (filteredImageBuffer != (cl_mem) NULL)
+    ReleaseOpenCLMemObject(filteredImageBuffer);
+  if (tempImageBuffer != (cl_mem) NULL)
+    ReleaseOpenCLMemObject(tempImageBuffer);
+  if (cubicCoefficientsBuffer != (cl_mem) NULL)
+    ReleaseOpenCLMemObject(cubicCoefficientsBuffer);
+  if (queue != (cl_command_queue) NULL)
+    ReleaseOpenCLCommandQueue(device,queue);
+  if (device != (MagickCLDevice) NULL)
+    ReleaseOpenCLDevice(device);
+  if ((outputReady == MagickFalse) && (filteredImage != (Image *) NULL))
+    // filteredImage=DestroyImage(filteredImage);
+    DestroyImage(filteredImage);
+
+  return(filteredImage);
+}
+
+MagickPrivate Image *AccelerateResizeImage(const Image *image,
+  const size_t resizedColumns,const size_t resizedRows,
+  const FilterInfo *filter_info,const double blur,ExceptionInfo *exception)
 {
   Image
     *filteredImage;
@@ -217,9 +373,8 @@ static MagickCLEnv getOpenCLEnvironment(ExceptionInfo* exception)
   if (clEnv == (MagickCLEnv) NULL)
     return((Image *) NULL);
 
-  // filteredImage=ComputeResizeImage(image,clEnv,resizedColumns,resizedRows,
-  //   resizeFilter,exception);
-  // return(filteredImage);
-  return NULL;
+  filteredImage=ComputeResizeImage(image,clEnv,resizedColumns,resizedRows,
+    filter_info,blur,exception);
+  return(filteredImage);
 }
 #endif /* HAVE_OPENCL */

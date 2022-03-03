@@ -66,7 +66,7 @@ extern MagickPrivate MagickBooleanType
 
 extern Image
   *AccelerateResizeImage(const Image *,const size_t,const size_t,
-    /* const ResizeFilter *, */ExceptionInfo *);
+    const FilterInfo *,const double,ExceptionInfo *);
 
 #endif /* HAVE_OPENCL */
 

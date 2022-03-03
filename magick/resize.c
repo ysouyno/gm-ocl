@@ -54,12 +54,12 @@ typedef struct _ContributionInfo
     pixel;
 } ContributionInfo;
 
-typedef struct _FilterInfo
+/* typedef struct _FilterInfo
 {
   double
     (*function)(const double,const double),
     support;
-} FilterInfo;
+} FilterInfo; */
 /*
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %                                                                             %
@@ -1419,7 +1419,7 @@ MagickExport Image *ResizeImage(const Image *image,const unsigned long columns,
                           ResizeFilterToString((FilterTypes)i));
 
 #if defined(HAVE_OPENCL)
-  resize_image=AccelerateResizeImage(image,columns,rows,/* &filter[i],blur, */exception);
+  resize_image=AccelerateResizeImage(image,columns,rows,&filters[i],blur,exception);
   if (resize_image != (Image*)NULL)
     return (resize_image);
 #endif

@@ -125,3 +125,8 @@
   */
   extern MagickExport MagickPassFail
   CheckImagePixelLimits(const Image *image, ExceptionInfo *exception);
+
+#if defined(HAVE_OPENCL)
+extern MagickPrivate cl_mem
+  GetAuthenticOpenCLBuffer(const Image *,MagickCLDevice,ExceptionInfo *);
+#endif
