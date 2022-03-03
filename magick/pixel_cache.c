@@ -30,7 +30,8 @@
 
 
 /*
-  GetAuthenticOpenCLBuffer() is based on ImageMagick/MagickCore/cache.c
+  GetAuthenticOpenCLBuffer(), CopyOpenCLBuffer(), SyncAuthenticOpenCLBuffer()
+  are based on ImageMagick/MagickCore/cache.c
 */
 
 /*
@@ -299,6 +300,10 @@ typedef struct _ThreadViewSet
     *views;
 
 } ThreadViewSet;
+
+#if defined(HAVE_OPENCL)
+static void CopyOpenCLBuffer(CacheInfo *);
+#endif
 
 /*
   Cache view interfaces.
@@ -2943,6 +2948,9 @@ AcquireImagePixels(const Image *image,
 {
   assert(image != (Image *) NULL);
   assert(image->signature == MagickSignature);
+#if defined(HAVE_OPENCL)
+  SyncAuthenticOpenCLBuffer(image);
+#endif
   return AcquireCacheViewPixels(AccessDefaultCacheView(image),
                                 x,y,columns,rows,exception);
 }
@@ -4526,6 +4534,9 @@ ModifyCache(Image *image, ExceptionInfo *exception)
 
     assert(image->cache != (Cache) NULL);
     cache_info=(CacheInfo *) image->cache;
+#if defined(HAVE_OPENCL)
+    CopyOpenCLBuffer(cache_info);
+#endif
     LockSemaphoreInfo(cache_info->reference_semaphore);
     {
       if ((cache_info->reference_count > 1) || (cache_info->read_only))
@@ -4720,6 +4731,9 @@ PersistCache(Image *image,const char *filename,
   assert(offset != (magick_off_t *) NULL);
   pagesize=MagickGetMMUPageSize();
   cache_info=(CacheInfo *) image->cache;
+#if defined(HAVE_OPENCL)
+  CopyOpenCLBuffer(cache_info);
+#endif
   if (attach)
     {
       /*
@@ -5247,11 +5261,59 @@ MagickPrivate cl_mem GetAuthenticOpenCLBuffer(const Image *image,
   return(cache_info->opencl->buffer);
 }
 
+/*
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%                                                                             %
+%                                                                             %
+%                                                                             %
++   S y n c A u t h e n t i c O p e n C L B u f f e r                         %
+%                                                                             %
+%                                                                             %
+%                                                                             %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%
+%  SyncAuthenticOpenCLBuffer() makes sure that all the OpenCL operations have
+%  been completed and updates the host memory.
+%
+%  The format of the SyncAuthenticOpenCLBuffer() method is:
+%
+%      void SyncAuthenticOpenCLBuffer(const Image *image)
+%
+%  A description of each parameter follows:
+%
+%    o image: the image.
+%
+*/
+
+static void CopyOpenCLBuffer(CacheInfo *magick_restrict cache_info)
+{
+  assert(cache_info != (CacheInfo *) NULL);
+  assert(cache_info->signature == MagickSignature);
+  if ((cache_info->type != MemoryCache) ||
+      (cache_info->opencl == (MagickCLCacheInfo) NULL))
+    return;
+  /*
+    Ensure single threaded access to OpenCL environment.
+  */
+  LockSemaphoreInfo(cache_info->semaphore);
+  cache_info->opencl=CopyMagickCLCacheInfo(cache_info->opencl);
+  UnlockSemaphoreInfo(cache_info->semaphore);
+}
+
+MagickPrivate void SyncAuthenticOpenCLBuffer(const Image *image)
+{
+  CacheInfo
+    *magick_restrict cache_info;
+
+  assert(image != (const Image *) NULL);
+  cache_info=(CacheInfo *) image->cache;
+  CopyOpenCLBuffer(cache_info);
+}
+
 MagickExport MagickCLCacheInfo
 GetCacheInfoOpenCL(CacheInfo* ci)
 {
   assert(ci);
   return ci->opencl;
 }
-
 #endif

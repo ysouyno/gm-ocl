@@ -1123,11 +1123,15 @@ static double RunOpenCLBenchmark(MagickBooleanType is_cpu)
         MagickCLCacheInfo
           cl_info;
 
+        // TODO
+        assert(resizedImage);
         cache_info=(CacheInfo *) resizedImage->cache;
-        cl_info=GetCacheInfoOpenCL(cache_info);
-        if (cl_info != (MagickCLCacheInfo) NULL)
-          openCL_library->clWaitForEvents(cl_info->event_count,
-            cl_info->events);
+        if (cache_info) {
+          cl_info=GetCacheInfoOpenCL(cache_info);
+          if (cl_info != (MagickCLCacheInfo) NULL)
+            openCL_library->clWaitForEvents(cl_info->event_count,
+              cl_info->events);
+        }
       }
 
     if (i > 0)

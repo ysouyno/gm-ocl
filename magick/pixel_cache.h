@@ -273,6 +273,9 @@ extern "C" {
 
   extern MagickExport MagickPassFail
     ClonePixelCache(Image *,Image *,ExceptionInfo *);
+
+  extern MagickPrivate void
+    SyncAuthenticOpenCLBuffer(const Image *);
 #endif
 
 #if defined(__cplusplus) || defined(c_plusplus)
