@@ -43,6 +43,8 @@
     (GetMagickThreadId())
   MagickCore types.
     (QuantumRange, QuantumScale)
+  MagickCore pixel accessor methods.
+    (PerceptibleReciprocal())
 */
 
 /*
@@ -193,6 +195,15 @@ typedef pid_t MagickThreadType;
 #  define MagickPathExtent  4096  /* always >= max(PATH_MAX,4096) */
 #endif
 
+#if defined(_MSC_VER)
+# define DisableMSCWarning(nr) __pragma(warning(push)) \
+  __pragma(warning(disable:nr))
+# define RestoreMSCWarning __pragma(warning(pop))
+#else
+# define DisableMSCWarning(nr)
+# define RestoreMSCWarning
+#endif
+
 typedef struct _StringInfo
 {
   char
@@ -265,6 +276,20 @@ static inline MagickBooleanType HeapOverflowSanityCheckGetSize(
   if (extent != NULL)
     *extent=length;
   return(MagickFalse);
+}
+
+static inline double PerceptibleReciprocal(const double x)
+{
+  double
+    sign;
+
+  /*
+    Return 1/x where x is perceptible (not unlimited or infinitesimal).
+  */
+  sign=x < 0.0 ? -1.0 : 1.0;
+  if ((sign*x) >= MagickEpsilon)
+    return(1.0/x);
+  return(sign/MagickEpsilon);
 }
 
 extern MagickExport void

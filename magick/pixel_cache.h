@@ -268,7 +268,11 @@ extern "C" {
 #endif /* defined(MAGICK_IMPLEMENTATION) */
 
 #if defined(HAVE_OPENCL)
-  extern MagickExport MagickCLCacheInfo GetCacheInfoOpenCL(CacheInfo*);
+  extern MagickExport MagickCLCacheInfo
+    GetCacheInfoOpenCL(CacheInfo*);
+
+  extern MagickExport MagickPassFail
+    ClonePixelCache(Image *,Image *,ExceptionInfo *);
 #endif
 
 #if defined(__cplusplus) || defined(c_plusplus)

@@ -3270,7 +3270,7 @@ CheckImagePixelLimits(const Image *image, ExceptionInfo *exception)
 %
 %
 */
-static MagickPassFail
+/* static */ MagickPassFail
 ClonePixelCache(Image *image,Image *clone_image,ExceptionInfo *exception)
 {
 #define MaxBufferSize  65541
@@ -3741,6 +3741,9 @@ GetCacheInfo(Cache *cache)
   (void) memset(cache_info,0,sizeof(CacheInfo));
   cache_info->colorspace=RGBColorspace;
   cache_info->reference_semaphore=AllocateSemaphoreInfo();
+#if defined(HAVE_OPENCL)
+  cache_info->semaphore=AllocateSemaphoreInfo();
+#endif
   LockSemaphoreInfo(cache_info->reference_semaphore);
   cache_info->reference_count=1;
   UnlockSemaphoreInfo(cache_info->reference_semaphore);
@@ -5243,7 +5246,6 @@ MagickPrivate cl_mem GetAuthenticOpenCLBuffer(const Image *image,
   assert(cache_info->opencl->pixels == cache_info->pixels);
   return(cache_info->opencl->buffer);
 }
-#endif
 
 MagickExport MagickCLCacheInfo
 GetCacheInfoOpenCL(CacheInfo* ci)
@@ -5251,3 +5253,5 @@ GetCacheInfoOpenCL(CacheInfo* ci)
   assert(ci);
   return ci->opencl;
 }
+
+#endif

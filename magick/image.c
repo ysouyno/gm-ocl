@@ -1251,6 +1251,9 @@ MagickExport Image *CloneImage(const Image *image,const unsigned long columns,
   clone_image->rows=rows;
   clone_image->ping=image->ping;
   GetCacheInfo(&clone_image->cache);
+#if defined(HAVE_OPENCL)
+  ClonePixelCache(image,clone_image,&image->exception);
+#endif
   clone_image->default_views=AllocateThreadViewSet(clone_image,exception);
   if ((clone_image->cache == (_CacheInfoPtr_) NULL) ||
       (clone_image->default_views == (_ThreadViewSetPtr_) NULL))
