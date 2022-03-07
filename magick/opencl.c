@@ -1714,8 +1714,8 @@ static MagickBooleanType RegisterCacheEvent(MagickCLCacheInfo info,
   else
     info->events=ResizeQuantumMemory(info->events,++info->event_count,
       sizeof(*info->events));
-  if (info->events == (cl_event *) NULL)
-    // ThrowFatalException(ResourceLimitFatalError,"MemoryAllocationFailed");
+  // if (info->events == (cl_event *) NULL)
+  //   ThrowFatalException(ResourceLimitFatalError,"MemoryAllocationFailed");
   info->events[info->event_count-1]=event;
   UnlockSemaphoreInfo(info->events_semaphore);
   return(MagickTrue);

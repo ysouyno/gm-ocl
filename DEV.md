@@ -146,3 +146,111 @@ if (resizedImage != (Image *) NULL)
 ```
 
 经常遇到的是：`resizedImage`为`0`（`SIGSEGV`），`DestroyImage(resizedImage);`（`SIGABRT`）。
+
+## <2022-03-07 Mon>
+
+### 调用`clCreateBuffer()`产生异常问题
+
+在`vscode`上的堆栈输出如下：
+
+``` text
+libc.so.6!__pthread_kill_implementation (Unknown Source:0)
+libc.so.6!raise (Unknown Source:0)
+libc.so.6!abort (Unknown Source:0)
+libigdrcl.so![Unknown/Just-In-Time compiled code] (Unknown Source:0)
+libOpenCL.so!clCreateBuffer (Unknown Source:0)
+AcquireMagickCLCacheInfo(MagickCLDevice device, Quantum * pixels, const magick_int64_t length) (gm-ocl/magick/opencl.c:569)
+GetAuthenticOpenCLBuffer(const Image * image, MagickCLDevice device, ExceptionInfo * exception) (gm-ocl/magick/pixel_cache.c:5252)
+```
+
+因为堆栈显示问题最终是出在`__pthread_kill_implementation`上，所以我的调查方向一直在线程同步上，代码调试了一遍又一遍却始终没有找到问题。心灰意冷并已经产生从头再开始的想法了。
+
+注意到：
+
+``` text
+libigdrcl.so![Unknown/Just-In-Time compiled code] (Unknown Source:0)
+```
+
+谷歌了下`libigdrcl.so`，难道是安装`intel`驱动的问题？目前使用的是`intel-compute-runtime`，现改为`intel-opencl-runtime`，参考自：“[GPGPU - ArchWiki](https://wiki.archlinux.org/title/GPGPU)”。
+
+``` shellsession
+$ sudo pacman -Rns intel-compute-runtime
+$ yay -S intel-opencl-runtime
+```
+
+我对比了`intel-compute-runtime`和`intel-opencl-runtime`的`clinfo`输出差异发现`intel-compute-runtime`支持`GPU`，`intel-opencl-runtime`支持`CPU`。
+
+那代码到底有没有问题？`clCreateBuffer()`调用失败的原因要不要深究？
+
+### `vscode`环境
+
+``` json
+// tasks.json
+{
+    // See https://go.microsoft.com/fwlink/?LinkId=733558
+    // for the documentation about the tasks.json format
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "build with opencl",
+            "type": "shell",
+            "command": "make",
+            "problemMatcher": [],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
+        }
+    ]
+}
+```
+
+``` json
+// launch.json
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "(gdb) Launch",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/utilities/gm",
+            "args": ["display", "~/temp/bg1a.jpg"],
+            "stopAtEntry": false,
+            "cwd": "${fileDirname}",
+            "environment": [
+                {
+                    "name": "MAGICK_OCL_DEVICE",
+                    "value": "true"
+                }
+            ],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                },
+                {
+                    "description":  "Set Disassembly Flavor to Intel",
+                    "text": "-gdb-set disassembly-flavor intel",
+                    "ignoreFailures": true
+                }
+            ]
+        }
+
+    ]
+}
+```
+
+正在用的`dev.sh`内容如下：
+
+``` shell
+#!/bin/bash
+
+./configure CFLAGS='-g -O0' LDFLAGS='-ldl' --enable-opencl --prefix=$HOME/usr/local
+```

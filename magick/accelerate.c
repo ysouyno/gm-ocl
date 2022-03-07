@@ -656,8 +656,9 @@ static Image *ComputeResizeImage(const Image* image,MagickCLEnv clEnv,
     goto cleanup;
   } */
 
-  // no number_channels in struct _Image in GM
+  // TODO: no number_channels in struct _Image in GM
   // number_channels=(cl_uint) image->number_channels;
+  number_channels = 4;
   xFactor=(float) resizedColumns/(float) image->columns;
   yFactor=(float) resizedRows/(float) image->rows;
   if (xFactor > yFactor)
