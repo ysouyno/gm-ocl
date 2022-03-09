@@ -149,7 +149,7 @@ if (resizedImage != (Image *) NULL)
 
 ## <2022-03-07 Mon>
 
-### 调用`clCreateBuffer()`产生异常问题
+### 调用`clCreateBuffer()`产生异常问题（一）
 
 在`vscode`上的堆栈输出如下：
 
@@ -254,3 +254,167 @@ $ yay -S intel-opencl-runtime
 
 ./configure CFLAGS='-g -O0' LDFLAGS='-ldl' --enable-opencl --prefix=$HOME/usr/local
 ```
+
+### 调用`clCreateBuffer()`产生异常问题（二）
+
+使用`MAGICK_OCL_DEVICE=GPU`且在已经安装了`opencl-compute-runtime`的情况下会产生两个问题：
+
+1. `gm`运行卡死，无法操作，`CPU`使用率居高不下，或者
+2. `gm`运行崩溃，产生如下提示：
+
+``` shellsession
+$ gm display ~/temp/bg1a.jpg
+Abort was called at 250 line in file:
+/build/intel-compute-runtime/src/compute-runtime-22.09.22577/shared/source/memory_manager/host_ptr_manager.cpp
+Aborted (core dumped)
+```
+
+## <2022-03-09 Wed>
+
+### 调用`clCreateBuffer()`产生异常问题（三）
+
+我在这里找到了一些有用的信息：“[crash in `NEO::DrmAllocation::makeBOsResident` or in `checkAllocationsForOverlapping` when using more than one opencl block in gnuradio gr-clenabled](https://github.com/intel/compute-runtime/issues/409)”。
+
+下载了`compute-runtime-22.09.22577`的源代码：
+
+``` c++
+// compute-runtime-22.09.22577/shared/source/memory_manager/host_ptr_manager.cpp
+
+OsHandleStorage HostPtrManager::prepareOsStorageForAllocation(MemoryManager &memoryManager, size_t size, const void *ptr, uint32_t rootDeviceIndex) {
+    std::lock_guard<decltype(allocationsMutex)> lock(allocationsMutex);
+    auto requirements = HostPtrManager::getAllocationRequirements(rootDeviceIndex, ptr, size);
+    UNRECOVERABLE_IF(checkAllocationsForOverlapping(memoryManager, &requirements) == RequirementsStatus::FATAL);
+    auto osStorage = populateAlreadyAllocatedFragments(requirements);
+    if (osStorage.fragmentCount > 0) {
+        if (memoryManager.populateOsHandles(osStorage, rootDeviceIndex) != MemoryManager::AllocationStatus::Success) {
+            memoryManager.cleanOsHandles(osStorage, rootDeviceIndex);
+            osStorage.fragmentCount = 0;
+        }
+    }
+    return osStorage;
+}
+```
+
+`host_ptr_manager.cpp:250`就是：
+
+``` c++
+UNRECOVERABLE_IF(checkAllocationsForOverlapping(memoryManager, &requirements) == RequirementsStatus::FATAL);
+```
+
+参考链接的：
+
+> Is flag CL_USE_HOST_PTR used to create buffers?
+
+> Are such buffers mapped (clEnqueueMapBuffer) and returned pointers used to create other buffers? Or passed as a ptr to EnqueueReadWriteBuffer/Image() calls?
+
+我加了`pixels`指针的输出发现：
+
+``` shellsession
+$ gm display ~/temp/bg1a.jpg
+14:45:53 0:1.237436  0.740u 69908 opencl.c/AcquireMagickCLCacheInfo/569/User:
+  clCreateBuffer pixels: 0x5648dc333c70
+14:45:53 0:1.244275  0.800u 69908 opencl.c/AcquireMagickCLCacheInfo/569/User:
+  clCreateBuffer pixels: 0x5648db4beac0
+14:45:53 0:1.334968  1.370u 69908 opencl.c/AcquireMagickCLCacheInfo/569/User:
+  clCreateBuffer pixels: 0x5648dd446b00
+14:45:53 0:1.336437  1.390u 69908 opencl.c/AcquireMagickCLCacheInfo/569/User:
+  clCreateBuffer pixels: 0x5648db646ae0
+14:45:53 0:1.432968  2.040u 69908 opencl.c/AcquireMagickCLCacheInfo/569/User:
+  clCreateBuffer pixels: 0x5648dd446b00
+14:45:53 0:1.433129  2.060u 69908 opencl.c/AcquireMagickCLCacheInfo/569/User:
+  clCreateBuffer pixels: 0x5648db646ae0
+14:45:53 0:1.544831  2.780u 69908 opencl.c/AcquireMagickCLCacheInfo/569/User:
+  clCreateBuffer pixels: 0x5648de446b50
+14:45:53 0:1.544873  2.790u 69908 opencl.c/AcquireMagickCLCacheInfo/569/User:
+  clCreateBuffer pixels: 0x5648dc762150
+14:45:53 0:1.659341  3.630u 69908 opencl.c/AcquireMagickCLCacheInfo/569/User:
+  clCreateBuffer pixels: 0x5648df446be0
+14:45:53 0:1.659420  3.630u 69908 opencl.c/AcquireMagickCLCacheInfo/569/User:
+  clCreateBuffer pixels: 0x5648dd935030
+14:45:53 0:1.778589  4.520u 69908 opencl.c/AcquireMagickCLCacheInfo/569/User:
+  clCreateBuffer pixels: 0x5648df446be0
+14:45:53 0:1.778667  4.530u 69908 opencl.c/AcquireMagickCLCacheInfo/569/User:
+  clCreateBuffer pixels: 0x5648dd935030
+14:45:54 0:2.242840  8.140u 69908 opencl.c/AcquireMagickCLCacheInfo/569/User:
+  clCreateBuffer pixels: 0x7f85b9757010
+14:45:54 0:2.247728  8.200u 69908 opencl.c/AcquireMagickCLCacheInfo/569/User:
+  clCreateBuffer pixels: 0x5648dc8faa00
+14:45:54 0:2.256726  8.280u 69908 opencl.c/CopyMagickCLCacheInfo/1552/User:
+  clEnqueueMapBuffer return pixels: 0x5648dc8faa00
+14:46:12 0:20.409439 8.320u 69908 opencl.c/AcquireMagickCLCacheInfo/569/User:
+  clCreateBuffer pixels: 0x5648db646ae0
+Abort was called at 250 line in file:
+/build/intel-compute-runtime/src/compute-runtime-22.09.22577/shared/source/memory_manager/host_ptr_manager.cpp
+Aborted (core dumped)
+```
+
+发现`0x5648db646ae0`指针在第三次调用`clCreateBuffer`时崩溃。怎么再次崩溃时的输出不一样：
+
+``` shellsession
+$ gm display ~/temp/bg1a.jpg
+15:09:02 0:1.357361  1.150u 71516 opencl.c/AcquireMagickCLCacheInfo/569/User:
+  clCreateBuffer pixels: 0x55728b02e720
+15:09:02 0:1.363826  1.210u 71516 opencl.c/AcquireMagickCLCacheInfo/569/User:
+  clCreateBuffer pixels: 0x55728a1b9570
+15:09:02 0:1.460255  1.810u 71516 opencl.c/AcquireMagickCLCacheInfo/569/User:
+  clCreateBuffer pixels: 0x55728ce2e740
+15:09:02 0:1.461296  1.830u 71516 opencl.c/AcquireMagickCLCacheInfo/569/User:
+  clCreateBuffer pixels: 0x55728b341620
+15:09:02 0:1.552602  2.460u 71516 opencl.c/AcquireMagickCLCacheInfo/569/User:
+  clCreateBuffer pixels: 0x55728c1415d0
+Abort was called at 250 line in file:
+/build/intel-compute-runtime/src/compute-runtime-22.09.22577/shared/source/memory_manager/host_ptr_manager.cpp
+Aborted (core dumped)
+```
+
+这次没有崩溃，但是却发现`clEnqueueMapBuffer`返回的指针被`clCreateBuffer`创建缓存却没有崩溃：
+
+``` shellsession
+$ gm display ~/temp/bg1a.jpg
+15:11:13 0:1.283573  1.150u 71783 opencl.c/AcquireMagickCLCacheInfo/569/User:
+  clCreateBuffer pixels: 0x55dcf5096990
+15:11:13 0:1.289888  1.200u 71783 opencl.c/AcquireMagickCLCacheInfo/569/User:
+  clCreateBuffer pixels: 0x55dcf4161c00
+15:11:13 0:1.385760  1.820u 71783 opencl.c/AcquireMagickCLCacheInfo/569/User:
+  clCreateBuffer pixels: 0x55dcf6296b20
+15:11:13 0:1.392014  1.850u 71783 opencl.c/AcquireMagickCLCacheInfo/569/User:
+  clCreateBuffer pixels: 0x55dcf4161c00
+15:11:14 0:1.479689  2.450u 71783 opencl.c/AcquireMagickCLCacheInfo/569/User:
+  clCreateBuffer pixels: 0x55dcf6296b20
+15:11:14 0:1.485056  2.470u 71783 opencl.c/AcquireMagickCLCacheInfo/569/User:
+  clCreateBuffer pixels: 0x55dcf4161c00
+15:11:14 0:1.581975  3.120u 71783 opencl.c/AcquireMagickCLCacheInfo/569/User:
+  clCreateBuffer pixels: 0x55dcf7296b60
+15:11:14 0:1.582017  3.120u 71783 opencl.c/AcquireMagickCLCacheInfo/569/User:
+  clCreateBuffer pixels: 0x55dcf528a550
+15:11:14 0:1.700207  4.010u 71783 opencl.c/AcquireMagickCLCacheInfo/569/User:
+  clCreateBuffer pixels: 0x55dcf8196bc0
+15:11:14 0:1.700267  4.010u 71783 opencl.c/AcquireMagickCLCacheInfo/569/User:
+  clCreateBuffer pixels: 0x55dcf528a550
+15:11:14 0:1.816203  4.880u 71783 opencl.c/AcquireMagickCLCacheInfo/569/User:
+  clCreateBuffer pixels: 0x55dcf8196bc0
+15:11:14 0:1.816260  4.880u 71783 opencl.c/AcquireMagickCLCacheInfo/569/User:
+  clCreateBuffer pixels: 0x55dcf528a550
+15:11:14 0:2.285724  8.520u 71783 opencl.c/AcquireMagickCLCacheInfo/569/User:
+  clCreateBuffer pixels: 0x7fe42d322010
+15:11:14 0:2.290441  8.550u 71783 opencl.c/AcquireMagickCLCacheInfo/569/User:
+  clCreateBuffer pixels: 0x55dcf54eb600
+15:11:14 0:2.300859  8.630u 71783 opencl.c/CopyMagickCLCacheInfo/1552/User:
+  clEnqueueMapBuffer return pixels: 0x55dcf54eb600
+15:11:25 0:13.121552 8.660u 71783 opencl.c/AcquireMagickCLCacheInfo/569/User:
+  clCreateBuffer pixels: 0x55dcf5570380
+15:11:25 0:13.135136 8.670u 71783 opencl.c/CopyMagickCLCacheInfo/1552/User:
+  clEnqueueMapBuffer return pixels: 0x55dcf5570380
+15:11:25 0:13.291565 8.680u 71783 opencl.c/AcquireMagickCLCacheInfo/569/User:
+  clCreateBuffer pixels: 0x55dcf54eb600
+15:11:25 0:13.300287 8.690u 71783 opencl.c/CopyMagickCLCacheInfo/1552/User:
+  clEnqueueMapBuffer return pixels: 0x55dcf54eb600
+```
+
+这跟上面链接的说法不符呀！难道是因为`clEnqueueMapBuffer`中没有使用`CL_USE_HOST_PTR`标记？所以不存在上面所说的这个问题？
+
+怪事儿，我为什么没有在`cl.h`里找到`CL_USE_HOST_PTR`的定义？
+
+在`IM`上添加了相同的输出代码，表现和上面的类似，但`IM`却能工作的很好，看来得从其它方法再入手了。
+
+注：`IM`的日志配置文件：`usr/local/etc/ImageMagick-7/log.xml`。
