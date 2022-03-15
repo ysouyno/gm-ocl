@@ -457,3 +457,110 @@ Aborted (core dumped)
 ``` emacs-lisp
 (> (+ #x55d124b23740 1536000) #x55d124b58490)
 ```
+
+### 调用`clCreateBuffer()`产生异常问题（五）
+
+在前一篇的基础上继续分析，因为`clCreateBuffer()`返回的地址即`GetAuthenticOpenCLBuffer()`的返回值（它在`ComputeResizeImage()`函数中被调用），当`ComputeResizeImage()`结束时，调用`clReleaseMemObject()`将会减少该内存计数，当计数为`0`时`clCreateBuffer()`创建的内存才被释放。
+
+为了打印内存的引用计数，增加了`clGetMemObjectInfo()`函数：
+
+``` c++
+// opencl-private.h
+
+typedef CL_API_ENTRY cl_int
+  (CL_API_CALL *MAGICKpfn_clGetMemObjectInfo)(cl_mem memobj,
+    cl_mem_info param_name,size_t param_value_size,void *param_value,
+    size_t *param_value_size_ret)
+    CL_API_SUFFIX__VERSION_1_0;
+
+MAGICKpfn_clGetMemObjectInfo clGetMemObjectInfo;
+```
+
+比如`ReleaseOpenCLMemObject()`函数被改成了：
+
+``` c++
+MagickPrivate void ReleaseOpenCLMemObject(cl_mem memobj)
+{
+  cl_uint refcnt=0;
+  openCL_library->clGetMemObjectInfo(memobj, CL_MEM_REFERENCE_COUNT, sizeof(cl_uint), &refcnt, NULL);
+  LogMagickEvent(UserEvent, GetMagickModule(),
+    "b4 ReleaseOpenCLMemObject(%p) refcnt: %d", memobj, refcnt);
+  cl_int ret=openCL_library->clReleaseMemObject(memobj);
+  openCL_library->clGetMemObjectInfo(memobj, CL_MEM_REFERENCE_COUNT, sizeof(cl_uint), &refcnt, NULL);
+  LogMagickEvent(UserEvent, GetMagickModule(),
+    "af ReleaseOpenCLMemObject(%p) refcnt: %d", memobj, refcnt);
+}
+```
+
+我有输出如下：
+
+``` shellsession
+[ysouyno@arch gm-ocl]$ gm display ~/temp/bg1a.jpg
+13:51:33 0:1.510679  1.480u 47963 opencl.c/AcquireMagickCLCacheInfo/576/User:
+  clCreateBuffer -- req: 1, pixles: 0x5588e97712e0, len: 15728640
+13:51:33 0:1.522527  1.570u 47963 opencl.c/AcquireMagickCLCacheInfo/584/User:
+  clCreateBuffer return: 0x5588e774f5c0, refcnt: 1
+13:51:33 0:1.522589  1.570u 47963 opencl.c/AcquireMagickCLCacheInfo/576/User:
+  clCreateBuffer -- req: 2, pixles: 0x5588e88fc130, len: 1536000
+13:51:33 0:1.524313  1.590u 47963 opencl.c/AcquireMagickCLCacheInfo/584/User:
+  clCreateBuffer return: 0x5588e77064b0, refcnt: 1
+13:51:33 0:1.528273  1.610u 47963 opencl.c/ReleaseOpenCLMemObject/509/User:
+  b4 ReleaseOpenCLMemObject(0x5588e774f5c0) refcnt: 2
+13:51:33 0:1.528351  1.610u 47963 opencl.c/ReleaseOpenCLMemObject/513/User:
+  af ReleaseOpenCLMemObject(0x5588e774f5c0) refcnt: 1
+13:51:33 0:1.528410  1.610u 47963 opencl.c/ReleaseOpenCLMemObject/509/User:
+  b4 ReleaseOpenCLMemObject(0x5588e77064b0) refcnt: 2
+13:51:33 0:1.528465  1.610u 47963 opencl.c/ReleaseOpenCLMemObject/513/User:
+  af ReleaseOpenCLMemObject(0x5588e77064b0) refcnt: 1
+13:51:33 0:1.528520  1.610u 47963 opencl.c/ReleaseOpenCLMemObject/509/User:
+  b4 ReleaseOpenCLMemObject(0x5588e87fead0) refcnt: 1
+13:51:33 0:1.528582  1.610u 47963 opencl.c/ReleaseOpenCLMemObject/513/User:
+  af ReleaseOpenCLMemObject(0x5588e87fead0) refcnt: 1
+13:51:34 0:1.740225  2.900u 47963 opencl.c/AcquireMagickCLCacheInfo/576/User:
+  clCreateBuffer -- req: 2, pixles: 0x5588eb571300, len: 15728640
+13:51:34 0:1.742399  2.910u 47963 opencl.c/AcquireMagickCLCacheInfo/584/User:
+  clCreateBuffer return: 0x5588e87fead0, refcnt: 1
+13:51:34 0:1.742615  2.910u 47963 opencl.c/AcquireMagickCLCacheInfo/576/User:
+  clCreateBuffer -- req: 3, pixles: 0x5588e9a841e0, len: 1536000
+13:51:34 0:1.744057  2.930u 47963 opencl.c/AcquireMagickCLCacheInfo/584/User:
+  clCreateBuffer return: 0x5588e87feda0, refcnt: 1
+13:51:34 0:1.745895  2.930u 47963 opencl.c/ReleaseOpenCLMemObject/509/User:
+  b4 ReleaseOpenCLMemObject(0x5588e87fead0) refcnt: 2
+13:51:34 0:1.745964  2.930u 47963 opencl.c/ReleaseOpenCLMemObject/513/User:
+  af ReleaseOpenCLMemObject(0x5588e87fead0) refcnt: 1
+13:51:34 0:1.746004  2.930u 47963 opencl.c/ReleaseOpenCLMemObject/509/User:
+  b4 ReleaseOpenCLMemObject(0x5588e87feda0) refcnt: 2
+13:51:34 0:1.746081  2.930u 47963 opencl.c/ReleaseOpenCLMemObject/513/User:
+  af ReleaseOpenCLMemObject(0x5588e87feda0) refcnt: 1
+13:51:34 0:1.746126  2.930u 47963 opencl.c/ReleaseOpenCLMemObject/509/User:
+  b4 ReleaseOpenCLMemObject(0x5588e87756a0) refcnt: 1
+13:51:34 0:1.746185  2.930u 47963 opencl.c/ReleaseOpenCLMemObject/513/User:
+  af ReleaseOpenCLMemObject(0x5588e87756a0) refcnt: 1
+13:51:34 0:1.946106  4.270u 47963 opencl.c/AcquireMagickCLCacheInfo/576/User:
+  clCreateBuffer -- req: 3, pixles: 0x5588ea9841f0, len: 15728640
+Abort was called at 250 line in file:
+/build/intel-compute-runtime/src/compute-runtime-22.09.22577/shared/source/memory_manager/host_ptr_manager.cpp
+Aborted (core dumped)
+```
+
+测试地址重叠：
+
+``` emacs-lisp
+(> (+ #x5588ea9841f0 15728640) #x5588eb571300)
+(- #x5588eb571300 #x5588ea9841f0)
+```
+
+解析下：最后一行`0x5588ea9841f0`调用`clCreateBuffer()`时崩溃，它的地址与`0x5588eb571300`重叠，而`0x5588eb571300`申请的`cl_mem`地址为：`0x5588e87fead0`，最后一次调用`ReleaseOpenCLMemObject()`后它的引用计数为`1`，这说明`0x5588eb571300`还没被释放而`0x5588ea9841f0`又开始申请造成内存重叠。
+
+发现一处问题，上面输出中有如下：
+
+``` shellsession
+13:51:33 0:1.528520  1.610u 47963 opencl.c/ReleaseOpenCLMemObject/509/User:
+  b4 ReleaseOpenCLMemObject(0x5588e87fead0) refcnt: 1
+13:51:33 0:1.528582  1.610u 47963 opencl.c/ReleaseOpenCLMemObject/513/User:
+  af ReleaseOpenCLMemObject(0x5588e87fead0) refcnt: 1
+```
+
+`ReleaseOpenCLMemObject(0x5588e87fead0)`调用前后引用计数没有减少。难道`clReleaseMemObject()`调用失败了？
+
+原来是因为当对象已经销毁后再调用`clGetMemObjectInfo()`将会返回`-38`的错误，即`CL_INVALID_MEM_OBJECT`。
