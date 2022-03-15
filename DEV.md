@@ -418,3 +418,42 @@ $ gm display ~/temp/bg1a.jpg
 在`IM`上添加了相同的输出代码，表现和上面的类似，但`IM`却能工作的很好，看来得从其它方法再入手了。
 
 注：`IM`的日志配置文件：`usr/local/etc/ImageMagick-7/log.xml`。
+
+# <2022-03-15 Tue>
+
+### 调用`clCreateBuffer()`产生异常问题（四）
+
+还是因为内存重叠的原因：我在`opencl.c`的`AcquireMagickCLCacheInfo()`函数中调用`clCreateBuffer()`之前添加了如下的输出代码：
+
+``` c++
+LogMagickEvent(UserEvent, GetMagickModule(),
+  "clCreateBuffer - req: %d, pixels: %p, len: %d",
+  device->requested, pixels, length);
+```
+
+当出现问题时有如下`log`：
+
+``` shellsession
+[ysouyno@arch gm-ocl]$ gm display ~/temp/bg1a.jpg
+10:51:31 0:1.368105  1.030u 28955 opencl.c/AcquireMagickCLCacheInfo/569/User:
+  clCreateBuffer - req: 1, pixels: 0x55d124b58490, len: 15728640
+10:51:31 0:1.374360  1.060u 28955 opencl.c/AcquireMagickCLCacheInfo/569/User:
+  clCreateBuffer - req: 2, pixels: 0x55d123c23730, len: 1536000
+10:51:31 0:1.469657  1.670u 28955 opencl.c/AcquireMagickCLCacheInfo/569/User:
+  clCreateBuffer - req: 2, pixels: 0x55d125c58510, len: 15728640
+10:51:31 0:1.475944  1.720u 28955 opencl.c/AcquireMagickCLCacheInfo/569/User:
+  clCreateBuffer - req: 3, pixels: 0x55d123c23730, len: 1536000
+10:51:31 0:1.566470  2.310u 28955 opencl.c/AcquireMagickCLCacheInfo/569/User:
+  clCreateBuffer - req: 3, pixels: 0x55d125c58510, len: 15728640
+10:51:31 0:1.571902  2.360u 28955 opencl.c/AcquireMagickCLCacheInfo/569/User:
+  clCreateBuffer - req: 4, pixels: 0x55d124b23740, len: 1536000
+Abort was called at 250 line in file:
+/build/intel-compute-runtime/src/compute-runtime-22.09.22577/shared/source/memory_manager/host_ptr_manager.cpp
+Aborted (core dumped)
+```
+
+注意看第一行和最后一行的输出发现，最后一行的地址加偏移已经大于第一行的地址，说明此时内存重叠，所以出现`clCreateBuffer()`的调用崩溃。这个问题有点难解了，涉及要修改整个`GM`的内存布局？
+
+``` emacs-lisp
+(> (+ #x55d124b23740 1536000) #x55d124b58490)
+```
