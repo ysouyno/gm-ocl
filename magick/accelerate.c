@@ -342,7 +342,7 @@ RestoreMSCWarning
   // resizeFilterWindowSupport=(float) GetResizeFilterWindowSupport(resizeFilter);
   // resizeFilterBlur=(float) GetResizeFilterBlur(resizeFilter);
   resizeFilterScale = 1.0;
-  resizeFilterSupport = 1.0;
+  resizeFilterSupport = 0.5;
   resizeFilterWindowSupport = 1.0;
   resizeFilterBlur = blur;
 
@@ -532,7 +532,7 @@ RestoreMSCWarning
   // resizeFilterBlur=(float) GetResizeFilterBlur(resizeFilter);
   // resizeFilterWindowSupport=(float) GetResizeFilterWindowSupport(resizeFilter);
   resizeFilterScale = 1.0;
-  resizeFilterSupport = 1.0;
+  resizeFilterSupport = 0.5;
   resizeFilterWindowSupport = 1.0;
   resizeFilterBlur = blur;
 

@@ -2545,14 +2545,19 @@ OPENCL_ENDIF()
 
               float alpha = weight * QuantumScale * cp.w;
 
-              filteredPixel.x += alpha * cp.x;
-              filteredPixel.y += alpha * cp.y;
-              filteredPixel.z += alpha * cp.z;
-              filteredPixel.w += weight * cp.w;
+              // filteredPixel.x += alpha * cp.x;
+              // filteredPixel.y += alpha * cp.y;
+              // filteredPixel.z += alpha * cp.z;
+              // filteredPixel.w += weight * cp.w;
+              filteredPixel.x += cp.x;
+              filteredPixel.y += cp.y;
+              filteredPixel.z += cp.z;
+              filteredPixel.w += cp.w;
               gamma += alpha;
             }
             else
-              filteredPixel += ((float4) weight)*cp;
+              // filteredPixel += ((float4) weight)*cp;
+              filteredPixel = cp;
 
             density += weight;
           }
@@ -2593,17 +2598,17 @@ OPENCL_ENDIF()
         if ((density != 0.0f) && (density != 1.0f))
         {
           density = PerceptibleReciprocal(density);
-          filteredPixel *= (float4) density;
+          // filteredPixel *= (float4) density;
           if (alpha_index != 0)
             gamma *= density;
         }
 
         if (alpha_index != 0)
         {
-          gamma = PerceptibleReciprocal(gamma);
-          filteredPixel.x *= gamma;
-          filteredPixel.y *= gamma;
-          filteredPixel.z *= gamma;
+          // gamma = PerceptibleReciprocal(gamma);
+          // filteredPixel.x *= gamma;
+          // filteredPixel.y *= gamma;
+          // filteredPixel.z *= gamma;
         }
 
         WriteAllChannels(filteredImage, number_channels, filteredColumns, chunkStartX + itemID, y, filteredPixel);
@@ -2711,14 +2716,19 @@ OPENCL_ENDIF()
 
               float alpha = weight * QuantumScale * cp.w;
 
-              filteredPixel.x += alpha * cp.x;
-              filteredPixel.y += alpha * cp.y;
-              filteredPixel.z += alpha * cp.z;
-              filteredPixel.w += weight * cp.w;
+              // filteredPixel.x += alpha * cp.x;
+              // filteredPixel.y += alpha * cp.y;
+              // filteredPixel.z += alpha * cp.z;
+              // filteredPixel.w += weight * cp.w;
+              filteredPixel.x += cp.x;
+              filteredPixel.y += cp.y;
+              filteredPixel.z += cp.z;
+              filteredPixel.w += cp.w;
               gamma += alpha;
             }
             else
-              filteredPixel += ((float4) weight)*cp;
+              // filteredPixel += ((float4) weight)*cp;
+              filteredPixel = cp;
 
             density += weight;
           }
@@ -2759,17 +2769,17 @@ OPENCL_ENDIF()
         if ((density != 0.0f) && (density != 1.0f))
         {
           density = PerceptibleReciprocal(density);
-          filteredPixel *= (float4) density;
+          // filteredPixel *= (float4) density;
           if (alpha_index != 0)
             gamma *= density;
         }
 
         if (alpha_index != 0)
         {
-          gamma = PerceptibleReciprocal(gamma);
-          filteredPixel.x *= gamma;
-          filteredPixel.y *= gamma;
-          filteredPixel.z *= gamma;
+          // gamma = PerceptibleReciprocal(gamma);
+          // filteredPixel.x *= gamma;
+          // filteredPixel.y *= gamma;
+          // filteredPixel.z *= gamma;
         }
 
         WriteAllChannels(filteredImage, number_channels, filteredColumns, x, chunkStartY + itemID, filteredPixel);
