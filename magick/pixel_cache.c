@@ -3638,6 +3638,14 @@ DestroyCacheInfo(Cache cache_info)
   */
   if (MemoryCache == cache_info->type)
     {
+#if defined(/*MAGICKCORE_OPENCL_SUPPORT*/HAVE_OPENCL)
+      if (cache_info->opencl != (MagickCLCacheInfo) NULL)
+        {
+          cache_info->opencl=RelinquishMagickCLCacheInfo(cache_info->opencl,
+            MagickTrue);
+          cache_info->pixels=(Quantum *) NULL;
+        }
+#endif
       MagickFreeMemory(cache_info->pixels);
       LiberateMagickResource(MemoryResource,cache_info->length);
     }

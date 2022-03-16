@@ -564,3 +564,9 @@ Aborted (core dumped)
 `ReleaseOpenCLMemObject(0x5588e87fead0)`调用前后引用计数没有减少。难道`clReleaseMemObject()`调用失败了？
 
 原来是因为当对象已经销毁后再调用`clGetMemObjectInfo()`将会返回`-38`的错误，即`CL_INVALID_MEM_OBJECT`。
+
+## <2022-03-16 Wed>
+
+### 调用`clCreateBuffer()`产生异常问题（六）
+
+我可能解决了这个问题，将问题定位在了`RunOpenCLBenchmark()`的结尾`DestroyImage(resizedImage);`处，即在`DestroyCacheInfo()`中应该有清除`OpenCL`相关内存的代码。
