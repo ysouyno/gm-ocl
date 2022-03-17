@@ -114,11 +114,41 @@ Include declarations.
 //   LastWeightingFunction
 // };
 
+// See pixel.c:InitializePixelChannelMap() in IM
+size_t calc_image_number_channels(Image *image)
+{
+  size_t
+   n;
+
+  assert(image != (Image *) NULL);
+  assert(image->signature == MagickSignature);
+
+  n=0;
+  if ((image->colorspace == GRAYColorspace))
+    n++;
+  else
+    n+=3;
+
+  if (image->colorspace == CMYKColorspace)
+    n++;
+  // No alpha_trait in struct _Image
+  if (image->storage_class == PseudoClass)
+    n++;
+  // No ReadMaskChannel, WriteMaskChannel and CompositeMaskChannel in GM
+  // No number_meta_channels in struct _Image
+
+  assert(n < 64);
+  return n;
+}
+
 /*
   Helper functions.
 */
 static MagickBool checkAccelerateCondition(const Image* image)
 {
+  size_t
+    number_channels;
+
   /* only direct class images are supported */
   if (image->storage_class != DirectClass)
     return(MagickFalse);
@@ -126,46 +156,51 @@ static MagickBool checkAccelerateCondition(const Image* image)
   /* check if the image's colorspace is supported */
   if (image->colorspace != RGBColorspace &&
       image->colorspace != sRGBColorspace &&
+      // No LinearGRAYColorspace in GM
       // image->colorspace != LinearGRAYColorspace &&
       image->colorspace != GRAYColorspace)
     return(MagickFalse);
 
-  // /* check if the virtual pixel method is compatible with the OpenCL implementation */
-  // if ((GetImageVirtualPixelMethod(image) != UndefinedVirtualPixelMethod) &&
-  //     (GetImageVirtualPixelMethod(image) != EdgeVirtualPixelMethod))
-  //   return(MagickFalse);
+  /* check if the virtual pixel method is compatible with the OpenCL implementation */
+  if ((GetImageVirtualPixelMethod(image) != UndefinedVirtualPixelMethod) &&
+      (GetImageVirtualPixelMethod(image) != EdgeVirtualPixelMethod))
+    return(MagickFalse);
 
-  // /* check if the image has mask */
+  /* check if the image has mask */
+  // No ReadMaskChannel, WriteMaskChannel and CompositeMaskChannel in GM
+  // see ChannelType definition in magick/image.h
   // if (((image->channels & ReadMaskChannel) != 0) ||
   //     ((image->channels & WriteMaskChannel) != 0) ||
   //     ((image->channels & CompositeMaskChannel) != 0))
   //   return(MagickFalse);
 
-  // if (image->number_channels > 4)
-  //   return(MagickFalse);
+  number_channels = calc_image_number_channels(image);
+
+  if (number_channels > 4)
+    return(MagickFalse);
 
   // /* check if pixel order is R */
   // if (GetPixelChannelOffset(image,RedPixelChannel) != 0)
   //   return(MagickFalse);
 
-  // if (image->number_channels == 1)
-  //   return(MagickTrue);
+  if (number_channels == 1)
+    return(MagickTrue);
 
   // /* check if pixel order is RA */
   // if ((image->number_channels == 2) &&
   //     (GetPixelChannelOffset(image,AlphaPixelChannel) == 1))
   //   return(MagickTrue);
 
-  // if (image->number_channels == 2)
-  //   return(MagickFalse);
+  if (number_channels == 2)
+    return(MagickFalse);
 
   // /* check if pixel order is RGB */
   // if ((GetPixelChannelOffset(image,GreenPixelChannel) != 1) ||
   //     (GetPixelChannelOffset(image,BluePixelChannel) != 2))
   //   return(MagickFalse);
 
-  // if (image->number_channels == 3)
-  //   return(MagickTrue);
+  if (number_channels == 3)
+    return(MagickTrue);
 
   // /* check if pixel order is RGBA */
   // if (GetPixelChannelOffset(image,AlphaPixelChannel) != 3)
@@ -658,7 +693,8 @@ static Image *ComputeResizeImage(const Image* image,MagickCLEnv clEnv,
 
   // TODO: no number_channels in struct _Image in GM
   // number_channels=(cl_uint) image->number_channels;
-  number_channels = 4;
+  // TODO: need plus 1 or the result is wrong
+  number_channels=(cl_uint) calc_image_number_channels(image)+1;
   xFactor=(float) resizedColumns/(float) image->columns;
   yFactor=(float) resizedRows/(float) image->rows;
   if (xFactor > yFactor)

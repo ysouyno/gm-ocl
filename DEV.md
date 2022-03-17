@@ -570,3 +570,50 @@ Aborted (core dumped)
 ### 调用`clCreateBuffer()`产生异常问题（六）
 
 我可能解决了这个问题，将问题定位在了`RunOpenCLBenchmark()`的结尾`DestroyImage(resizedImage);`处，即在`DestroyCacheInfo()`中应该有清除`OpenCL`相关内存的代码。
+
+## <2022-03-17 Thu>
+
+### 关于`IM`中的`number_channels`成员
+
+在`IM`中`number_channels`成员出现频率有点高，经调试发现`IM`中图片对象初始化时通过调用`OpenPixelCache()`然后在`InitializePixelChannelMap()`中设置`number_channels`的值。这个函数的内部大量使用了`GM`中没有类型`PixelChannel`和`PixelTrait`，不太好把它给搬到`GM`中。
+
+查看`PixelChannel`的定义发现了它的一个特点是：虽然它是`enum`类型，但每个成员都被指派了具体的值，且发现有多个成员共用一个值的情况。以此参照仍然没有在`GM`中找到类似定义，`PixelChannel`的定义：
+
+``` c++
+typedef enum
+{
+  UndefinedPixelChannel = 0,
+  RedPixelChannel = 0,
+  CyanPixelChannel = 0,
+  GrayPixelChannel = 0,
+  LPixelChannel = 0,
+  LabelPixelChannel = 0,
+  YPixelChannel = 0,
+  aPixelChannel = 1,
+  GreenPixelChannel = 1,
+  MagentaPixelChannel = 1,
+  CbPixelChannel = 1,
+  bPixelChannel = 2,
+  BluePixelChannel = 2,
+  YellowPixelChannel = 2,
+  CrPixelChannel = 2,
+  BlackPixelChannel = 3,
+  AlphaPixelChannel = 4,
+  IndexPixelChannel = 5,
+  ReadMaskPixelChannel = 6,
+  WriteMaskPixelChannel = 7,
+  MetaPixelChannel = 8,
+  CompositeMaskPixelChannel = 9,
+  IntensityPixelChannel = MaxPixelChannels,  /* ???? */
+  CompositePixelChannel = MaxPixelChannels,  /* ???? */
+  SyncPixelChannel = MaxPixelChannels+1      /* not a real channel */
+} PixelChannel;  /* must correspond to ChannelType */
+```
+
+我模仿`IM`的`InitializePixelChannelMap()`函数写了`calc_image_number_channels()`，虽然`number_channels`的值对于同一张测试图片`bg1a.jpg`来说均为`3`，但是在`IM`中值`3`显示正确，而在`GM`中`3 + 1`才能正确，所以我在`ComputeResizeImage()`中将`calc_image_number_channels()`的返回值加上了`1`：
+
+``` c++
+number_channels=(cl_uint) calc_image_number_channels(image)+1;
+```
+
+这只是临时方案，估计下面要更改抄过来的`kernel`函数。
