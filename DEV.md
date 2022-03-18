@@ -617,3 +617,84 @@ number_channels=(cl_uint) calc_image_number_channels(image)+1;
 ```
 
 这只是临时方案，估计下面要更改抄过来的`kernel`函数。
+
+## <2022-03-18 Fri>
+
+### 关于`gpuSupportedResizeWeighting()`的代码能否省略
+
+在`AccelerateResizeImage()`中有这样的一段代码被注释掉了：
+
+``` c++
+// if ((gpuSupportedResizeWeighting(GetResizeFilterWeightingType(
+//        resizeFilter)) == MagickFalse) ||
+//     (gpuSupportedResizeWeighting(GetResizeFilterWindowWeightingType(
+//        resizeFilter)) == MagickFalse))
+//   return((Image *) NULL);
+```
+
+我认为这段代码可以省略，因为它的目的就是为了检查`IM`的`ResizeFilter`类型中的`ResizeWeightingFunctionType`类型的成员值：
+
+``` c++
+struct _ResizeFilter
+{
+  double
+    (*filter)(const double,const ResizeFilter *),
+    (*window)(const double,const ResizeFilter *),
+    support,        /* filter region of support - the filter support limit */
+    window_support, /* window support, usally equal to support (expert only) */
+    scale,          /* dimension scaling to fit window support (usally 1.0) */
+    blur,           /* x-scale (blur-sharpen) */
+    coefficient[7]; /* cubic coefficents for BC-cubic filters */
+
+  ResizeWeightingFunctionType
+    filterWeightingType,
+    windowWeightingType;
+
+  size_t
+    signature;
+};
+```
+
+是否在`supportedResizeWeighting`数组中：
+
+``` c++
+static const ResizeWeightingFunctionType supportedResizeWeighting[] =
+{
+  BoxWeightingFunction,
+  TriangleWeightingFunction,
+  HannWeightingFunction,
+  HammingWeightingFunction,
+  BlackmanWeightingFunction,
+  CubicBCWeightingFunction,
+  SincWeightingFunction,
+  SincFastWeightingFunction,
+  LastWeightingFunction
+};
+```
+
+很明显这个数组就是`IM`支持`GPU`的窗函数集合。在`GM`中我只在`ResizeImage()`函数中找到相近的定义：
+
+``` c++
+static const FilterInfo
+  filters[SincFilter+1] =
+  {
+    { Box, 0.0 },
+    { Box, 0.0 },
+    { Box, 0.5 },
+    { Triangle, 1.0 },
+    { Hermite, 1.0 },
+    { Hanning, 1.0 },
+    { Hamming, 1.0 },
+    { Blackman, 1.0 },
+    { Gaussian, 1.25 },
+    { Quadratic, 1.5 },
+    { Cubic, 2.0 },
+    { Catrom, 2.0 },
+    { Mitchell, 2.0 },
+    { Lanczos, 3.0 },
+    { BlackmanBessel, 3.2383 },
+    { BlackmanSinc, 4.0 }
+  };
+```
+
+明显可见，`GM`中处理相对于`IM`简单多了，所以上面的代码我仍然保持它被注释状态。
