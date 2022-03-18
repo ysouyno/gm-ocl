@@ -978,13 +978,12 @@ static MagickBooleanType LoadOpenCLBenchmarks(MagickCLEnv clEnv)
       SelectOpenCLDevice(clEnv,CL_DEVICE_TYPE_GPU);
       return(MagickFalse);
     }
-  // TODO
-// #if !MAGICKCORE_ZERO_CONFIGURATION_SUPPORT
-//   option=ConfigureFileToStringInfo(filename);
-//   LoadOpenCLDeviceBenchmark(clEnv,(const char *) GetStringInfoDatum(option));
-//   option=DestroyStringInfo(option);
-//   return(MagickTrue);
-// #endif
+#if !MAGICKCORE_ZERO_CONFIGURATION_SUPPORT
+  option=ConfigureFileToStringInfo(filename);
+  LoadOpenCLDeviceBenchmark(clEnv,(const char *) GetStringInfoDatum(option));
+  option=DestroyStringInfo(option);
+  return(MagickTrue);
+#endif
 }
 
 static void AutoSelectOpenCLDevices(MagickCLEnv clEnv)

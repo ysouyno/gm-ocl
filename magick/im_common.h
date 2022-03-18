@@ -175,6 +175,27 @@ typedef MagickDoubleType Quantum;
 // Copy form GM magick_compat.c
 #define AcquireMagickMemory(memory) malloc(memory)
 
+#if !defined(MAGICKCORE_WINDOWS_SUPPORT)
+#if (MAGICKCORE_SIZEOF_UNSIGNED_LONG_LONG == 8)
+typedef long long MagickOffsetType;
+typedef unsigned long long MagickSizeType;
+#define MagickOffsetFormat  "lld"
+#define MagickSizeFormat  "llu"
+#else
+typedef ssize_t MagickOffsetType;
+typedef size_t MagickSizeType;
+#define MagickOffsetFormat  "ld"
+#define MagickSizeFormat  "lu"
+#endif
+#else
+typedef __int64 MagickOffsetType;
+typedef unsigned __int64 MagickSizeType;
+#define MagickOffsetFormat  "I64i"
+#define MagickSizeFormat  "I64u"
+#endif
+
+#define MAGICK_SSIZE_MAX (SSIZE_MAX)
+
 /*
   ImageMagick compatibility definitions
 */
@@ -248,9 +269,16 @@ extern MagickExport size_t
   CopyMagickString(char *magick_restrict,const char *magick_restrict,
     const size_t) magick_attribute((__nonnull__));
 
+extern MagickExport StringInfo
+  *ConfigureFileToStringInfo(const char *),
+  *DestroyStringInfo(StringInfo *);
+
 extern MagickExport char
   *ConstantString(const char *),
   *DestroyString(char *);
+
+extern MagickExport unsigned char
+  *GetStringInfoDatum(const StringInfo *);
 
 extern MagickExport MagickBooleanType
   IsStringTrue(const char *) magick_attribute((__pure__));

@@ -63,6 +63,7 @@
 // #include "MagickCore/string-private.h"
 // #include "MagickCore/utility-private.h"
 #include "magick/im_common.h"
+#include "magick/blob.h"
 
 /*
   Define declarations.
@@ -77,6 +78,123 @@ void *RelinquishMagickMemory(void *memory)
     return((void *) NULL);
   free(memory);
   return((void *) NULL);
+}
+
+static StringInfo *AcquireStringInfoContainer()
+{
+  StringInfo
+    *string_info;
+
+  string_info=(StringInfo *) AcquireCriticalMemory(sizeof(*string_info));
+  (void) memset(string_info,0,sizeof(*string_info));
+  string_info->signature=MagickSignature;
+  return(string_info);
+}
+
+/*
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%                                                                             %
+%                                                                             %
+%                                                                             %
+%   C o n f i g u r e F i l e T o S t r i n g I n f o                         %
+%                                                                             %
+%                                                                             %
+%                                                                             %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%
+%  ConfigureFileToStringInfo() returns the contents of a configure file as a
+%  string.
+%
+%  The format of the ConfigureFileToStringInfo method is:
+%
+%      StringInfo *ConfigureFileToStringInfo(const char *filename)
+%        ExceptionInfo *exception)
+%
+%  A description of each parameter follows:
+%
+%    o filename: the filename.
+%
+*/
+MagickExport StringInfo *ConfigureFileToStringInfo(const char *filename)
+{
+  char
+    *string;
+
+  int
+    file;
+
+  MagickOffsetType
+    offset;
+
+  size_t
+    length;
+
+  StringInfo
+    *string_info;
+
+  void
+    *map;
+
+  assert(filename != (const char *) NULL);
+  file=open/*_utf8*/(filename,O_RDONLY | O_BINARY,0);
+  if (file == -1)
+    return((StringInfo *) NULL);
+  offset=(MagickOffsetType) lseek(file,0,SEEK_END);
+  if ((offset < 0) || (offset != (MagickOffsetType) ((ssize_t) offset)))
+    {
+      file=close(file)-1;
+      return((StringInfo *) NULL);
+    }
+  length=(size_t) offset;
+  string=(char *) NULL;
+  if (~length >= (MagickPathExtent-1))
+    string=(char *) AcquireQuantumMemory(length+MagickPathExtent,
+      sizeof(*string));
+  if (string == (char *) NULL)
+    {
+      file=close(file)-1;
+      return((StringInfo *) NULL);
+    }
+  map=MapBlob(file,ReadMode,0,length);
+  if (map != (void *) NULL)
+    {
+      (void) memcpy(string,map,length);
+      (void) UnmapBlob(map,length);
+    }
+  else
+    {
+      size_t
+        i;
+
+      ssize_t
+        count;
+
+      (void) lseek(file,0,SEEK_SET);
+      for (i=0; i < length; i+=count)
+      {
+        count=read(file,string+i,(size_t) MagickMin(length-i,(size_t)
+          MAGICK_SSIZE_MAX));
+        if (count <= 0)
+          {
+            count=0;
+            if (errno != EINTR)
+              break;
+          }
+      }
+      if (i < length)
+        {
+          file=close(file)-1;
+          string=DestroyString(string);
+          return((StringInfo *) NULL);
+        }
+    }
+  string[length]='\0';
+  file=close(file)-1;
+  string_info=AcquireStringInfoContainer();
+  string_info->path=ConstantString(filename);
+  string_info->length=length;
+  string_info->datum=(unsigned char *) string;
+  return(string_info);
 }
 
 /*
@@ -225,6 +343,44 @@ MagickExport char *DestroyString(char *string)
 %                                                                             %
 %                                                                             %
 %                                                                             %
+%   D e s t r o y S t r i n g I n f o                                         %
+%                                                                             %
+%                                                                             %
+%                                                                             %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%
+%  DestroyStringInfo() destroys memory associated with the StringInfo structure.
+%
+%  The format of the DestroyStringInfo method is:
+%
+%      StringInfo *DestroyStringInfo(StringInfo *string_info)
+%
+%  A description of each parameter follows:
+%
+%    o string_info: the string info.
+%
+*/
+MagickExport StringInfo *DestroyStringInfo(StringInfo *string_info)
+{
+  assert(string_info != (StringInfo *) NULL);
+  assert(string_info->signature == MagickSignature);
+  if (string_info->datum != (unsigned char *) NULL)
+    string_info->datum=(unsigned char *) RelinquishMagickMemory(
+      string_info->datum);
+  if (string_info->name != (char *) NULL)
+    string_info->name=DestroyString(string_info->name);
+  if (string_info->path != (char *) NULL)
+    string_info->path=DestroyString(string_info->path);
+  string_info->signature=(~MagickSignature);
+  string_info=(StringInfo *) RelinquishMagickMemory(string_info);
+  return(string_info);
+}
+
+/*
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%                                                                             %
+%                                                                             %
+%                                                                             %
 %   G e t E n v i r o n m e n t V a l u e                                     %
 %                                                                             %
 %                                                                             %
@@ -254,6 +410,35 @@ MagickExport char *GetEnvironmentValue(const char *name)
   return(ConstantString(environment));
 }
 
+/*
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%                                                                             %
+%                                                                             %
+%                                                                             %
+%   G e t S t r i n g I n f o D a t u m                                       %
+%                                                                             %
+%                                                                             %
+%                                                                             %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%
+%  GetStringInfoDatum() returns the datum associated with the string.
+%
+%  The format of the GetStringInfoDatum method is:
+%
+%      unsigned char *GetStringInfoDatum(const StringInfo *string_info)
+%
+%  A description of each parameter follows:
+%
+%    o string_info: the string info.
+%
+*/
+MagickExport unsigned char *GetStringInfoDatum(const StringInfo *string_info)
+{
+  assert(string_info != (StringInfo *) NULL);
+  assert(string_info->signature == MagickSignature);
+  return(string_info->datum);
+}
+
 /*
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %                                                                             %
