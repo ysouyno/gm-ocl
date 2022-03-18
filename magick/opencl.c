@@ -3260,7 +3260,7 @@ MagickExport MagickBooleanType SetOpenCLEnabled(const MagickBooleanType value)
 
 #else
 
-MagickExport double GetOpenCLDeviceBenchmarkScore(
+/* MagickExport double GetOpenCLDeviceBenchmarkScore(
   const MagickCLDevice magick_unused(device))
 {
   magick_unreferenced(device);
@@ -3339,5 +3339,6 @@ MagickExport void SetOpenCLKernelProfileEnabled(
 {
   magick_unreferenced(device);
   magick_unreferenced(value);
-}
+} */
+
 #endif

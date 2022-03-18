@@ -27,6 +27,8 @@
 extern "C" {
 #endif
 
+#if defined(HAVE_OPENCL)
+
 typedef enum
 {
   UndefinedCLDeviceType,
@@ -79,5 +81,7 @@ extern MagickExport void
 #if defined(__cplusplus) || defined(c_plusplus)
 }
 #endif
+
+#endif /* HAVE_OPENCL */
 
 #endif

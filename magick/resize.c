@@ -40,7 +40,9 @@
 #include "magick/pixel_cache.h"
 #include "magick/resize.h"
 #include "magick/utility.h"
+#if defined(HAVE_OPENCL)
 #include "magick/accelerate-private.h"
+#endif
 
 /*
   Typedef declarations.
@@ -54,12 +56,15 @@ typedef struct _ContributionInfo
     pixel;
 } ContributionInfo;
 
-/* typedef struct _FilterInfo
+#if !defined(HAVE_OPENCL)
+typedef struct _FilterInfo
 {
   double
     (*function)(const double,const double),
     support;
-} FilterInfo; */
+} FilterInfo;
+#endif
+
 /*
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %                                                                             %

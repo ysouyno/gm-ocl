@@ -205,8 +205,10 @@ typedef struct _CacheInfo
   /* Open file handle for disk cache */
   int file;
 
+#if defined(HAVE_OPENCL)
   MagickCLCacheInfo opencl;
   SemaphoreInfo* semaphore;
+#endif
 
   /* Image file name in form "filename[index]" (for use in logging) */
   char filename[MaxTextExtent];

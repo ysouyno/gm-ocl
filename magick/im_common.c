@@ -71,6 +71,8 @@
 #define CharsPerLine  0x14
 
 
+#if defined(HAVE_OPENCL)
+
 // TODO
 void *RelinquishMagickMemory(void *memory)
 {
@@ -1101,3 +1103,5 @@ MagickExport void *ResizeMagickMemory(void *memory,const size_t size)
     (void) RelinquishMagickMemory(memory);
   return(allocation);
 }
+
+#endif /* HAVE_OPENCL */
