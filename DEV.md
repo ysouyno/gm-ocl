@@ -579,6 +579,8 @@ Aborted (core dumped)
 
 查看`PixelChannel`的定义发现了它的一个特点是：虽然它是`enum`类型，但每个成员都被指派了具体的值，且发现有多个成员共用一个值的情况。以此参照仍然没有在`GM`中找到类似定义，`PixelChannel`的定义：
 
+<span id="pixel_channel_def"></span>
+
 ``` c++
 typedef enum
 {
@@ -719,3 +721,296 @@ Aborted (core dumped)
 ```
 
 连`clinfo`都运行不了了，看来肯定不是我代码的问题。发现`intel-compute-runtime`的版本也已经更新了。
+
+### 对`IM`的`number_channels`及`PixelChannelMap`结构体中的`channel`和`offset`成员的理解
+
+这个标题有点长，可能文章的内容也有点长，但是思路越来越清晰。先来看`PixelChannelMap`的结构体定义：
+
+``` c++
+typedef struct _PixelChannelMap
+{
+  PixelChannel
+    channel;
+
+  PixelTrait
+    traits;
+
+  ssize_t
+    offset;
+} PixelChannelMap;
+```
+
+`PixelChannelMap`在`IM`的`_Image`结构体中对应成员`channel_map`：
+
+``` c++
+PixelChannelMap
+  *channel_map;
+```
+
+首先要说的是，`channel_map`在逐个计算像素的过程中非常重要，拿`IM`的`resize.c:HorizontalFilter()`函数为例：
+
+``` c++
+for (i=0; i < (ssize_t) GetPixelChannels(image); i++)
+{
+  double
+    alpha,
+    gamma,
+    pixel;
+
+  PixelChannel
+    channel;
+
+  PixelTrait
+    resize_traits,
+    traits;
+
+  ssize_t
+    j;
+
+  ssize_t
+    k;
+
+  channel=GetPixelChannelChannel(image,i);
+  traits=GetPixelChannelTraits(image,channel);
+  resize_traits=GetPixelChannelTraits(resize_image,channel);
+  if ((traits == UndefinedPixelTrait) ||
+      (resize_traits == UndefinedPixelTrait))
+    continue;
+  if (((resize_traits & CopyPixelTrait) != 0) ||
+      (GetPixelWriteMask(resize_image,q) <= (QuantumRange/2)))
+    {
+      j=(ssize_t) (MagickMin(MagickMax(bisect,(double) start),(double)
+        stop-1.0)+0.5);
+      k=y*(contribution[n-1].pixel-contribution[0].pixel+1)+
+        (contribution[j-start].pixel-contribution[0].pixel);
+      SetPixelChannel(resize_image,channel,p[k*GetPixelChannels(image)+i],
+        q);
+      continue;
+    }
+  pixel=0.0;
+  if ((resize_traits & BlendPixelTrait) == 0)
+    {
+      /*
+        No alpha blending.
+      */
+      for (j=0; j < n; j++)
+      {
+        k=y*(contribution[n-1].pixel-contribution[0].pixel+1)+
+          (contribution[j].pixel-contribution[0].pixel);
+        alpha=contribution[j].weight;
+        pixel+=alpha*p[k*GetPixelChannels(image)+i];
+      }
+      SetPixelChannel(resize_image,channel,ClampToQuantum(pixel),q);
+      continue;
+    }
+  /*
+    Alpha blending.
+  */
+  gamma=0.0;
+  for (j=0; j < n; j++)
+  {
+    k=y*(contribution[n-1].pixel-contribution[0].pixel+1)+
+      (contribution[j].pixel-contribution[0].pixel);
+    alpha=contribution[j].weight*QuantumScale*
+      GetPixelAlpha(image,p+k*GetPixelChannels(image));
+    pixel+=alpha*p[k*GetPixelChannels(image)+i];
+    gamma+=alpha;
+  }
+  gamma=PerceptibleReciprocal(gamma);
+  SetPixelChannel(resize_image,channel,ClampToQuantum(gamma*pixel),q);
+}
+```
+
+这个循环中的`GetPixelChannels()`函数就是返回`number_channels`的值：
+
+``` c++
+static inline size_t GetPixelChannels(const Image *magick_restrict image)
+{
+  return(image->number_channels);
+}
+```
+
+即处理每个像素的所有`channel`，通过`GetPixelChannelChannel()`函数以通道的`offset`成员获得对应的`channel`：
+
+``` c++
+static inline PixelChannel GetPixelChannelChannel(
+  const Image *magick_restrict image,const ssize_t offset)
+{
+  return(image->channel_map[offset].channel);
+}
+```
+
+返回的`channel`是`PixelChannel`类型，这个定义在上面的文章中已经给出了，见：“[PixelChannel](#pixel_channel_def)”，看定义我之前还在奇怪为什么`enum`类型指定了好多相同的`0`值，`1`值，现在终于明白了。即比如`RGB`和`CMYK`两种形式`R`和`C`都是第`0`个通道，`G`和`M`都是第`1`个通道，依次类推。`CMYK`中的`K`就是`black`，在`PixelChannel`中对应的是`BlackPixelChannel`。
+
+重点就是`SetPixelChannel()`这个函数：
+
+``` c++
+static inline void SetPixelChannel(const Image *magick_restrict image,
+  const PixelChannel channel,const Quantum quantum,
+  Quantum *magick_restrict pixel)
+{
+  if (image->channel_map[channel].traits != UndefinedPixelTrait)
+    pixel[image->channel_map[channel].offset]=quantum;
+}
+```
+
+这里忽略理解`traits`，最后一个参数`pixel`就是处理像素后的目标地址，代码中的`channel`是通过循环`i`获取的，`offset`是通过`channel`获取的，最终计算出了`pixel`的真正地址，然后将计算好的`quantum`赋值进去。
+
+最后，`channel_map`中的`channel`和`offset`是在哪里初始化的？我对比了代码发现只在：
+
+``` c++
+static inline void SetPixelChannelAttributes(
+  const Image *magick_restrict image,const PixelChannel channel,
+  const PixelTrait traits,const ssize_t offset)
+{
+  if ((ssize_t) channel >= MaxPixelChannels)
+    return;
+  if (offset >= MaxPixelChannels)
+    return;
+  image->channel_map[offset].channel=channel;
+  image->channel_map[channel].offset=offset;
+  image->channel_map[channel].traits=traits;
+}
+```
+
+而`SetPixelChannelAttributes()`只在`InitializePixelChannelMap()`函数中会被调用，`InitializePixelChannelMap()`这个函数有点熟悉，在之前了解`number_channels`的文章中做过了介绍，这个函数内部计算并初始化了`number_channels`的值。
+
+我对`GM`和`IM`进行了比较，`GM`对`IM`进行了精简，代码：
+
+``` c++
+for (y=0; y < (long) destination->rows; y++)
+  {
+    double
+      weight;
+
+    DoublePixelPacket
+      pixel;
+
+    long
+      j;
+
+    register long
+      i;
+
+    pixel=zero;
+    if ((destination->matte) || (destination->colorspace == CMYKColorspace))
+      {
+        double
+          transparency_coeff,
+          normalize;
+
+        normalize=0.0;
+        for (i=0; i < n; i++)
+          {
+            j=y*(contribution[n-1].pixel-contribution[0].pixel+1)+
+              (contribution[i].pixel-contribution[0].pixel);
+            weight=contribution[i].weight;
+            transparency_coeff = weight * (1 - ((double) p[j].opacity/TransparentOpacity));
+            pixel.red+=transparency_coeff*p[j].red;
+            pixel.green+=transparency_coeff*p[j].green;
+            pixel.blue+=transparency_coeff*p[j].blue;
+            pixel.opacity+=weight*p[j].opacity;
+            normalize += transparency_coeff;
+          }
+        normalize = 1.0 / (AbsoluteValue(normalize) <= MagickEpsilon ? 1.0 : normalize);
+        pixel.red *= normalize;
+        pixel.green *= normalize;
+        pixel.blue *= normalize;
+        q[y].red=RoundDoubleToQuantum(pixel.red);
+        q[y].green=RoundDoubleToQuantum(pixel.green);
+        q[y].blue=RoundDoubleToQuantum(pixel.blue);
+        q[y].opacity=RoundDoubleToQuantum(pixel.opacity);
+      }
+    else
+      {
+        for (i=0; i < n; i++)
+          {
+            j=(long) (y*(contribution[n-1].pixel-contribution[0].pixel+1)+
+                      (contribution[i].pixel-contribution[0].pixel));
+            weight=contribution[i].weight;
+            pixel.red+=weight*p[j].red;
+            pixel.green+=weight*p[j].green;
+            pixel.blue+=weight*p[j].blue;
+          }
+        q[y].red=RoundDoubleToQuantum(pixel.red);
+        q[y].green=RoundDoubleToQuantum(pixel.green);
+        q[y].blue=RoundDoubleToQuantum(pixel.blue);
+        q[y].opacity=OpaqueOpacity;
+      }
+
+    if ((indexes != (IndexPacket *) NULL) &&
+        (source_indexes != (IndexPacket *) NULL))
+      {
+        i=Min(Max((long) (center+0.5),start),stop-1);
+        j=y*(contribution[n-1].pixel-contribution[0].pixel+1)+
+          (contribution[i-start].pixel-contribution[0].pixel);
+        indexes[y]=source_indexes[j];
+      }
+  }
+```
+
+从上面的代码可看出，在`GM`中只处理了`matte`通道或`CMYKColorsapce`，它们都是四通道的。但是看到代码中的`indexes`，不知道这个在`GM`中的意义及是否在`IM`中有相关对应。
+
+可以在`GM`中通过搜索`indexes_valid`来找到一些有用的信息：
+
+``` c++
+/*
+  Indexes are valid if the image storage class is PseudoClass or the
+  colorspace is CMYK.
+*/
+cache_info->indexes_valid=((image->storage_class == PseudoClass) ||
+                           (image->colorspace == CMYKColorspace));
+```
+
+原来是这样，这里的`PseudoClass`就是`pseudocolor`，可以在`wiki`的`Indexed color`中找到介绍，之所以叫做索引颜色，是因为为了节省内存或磁盘空间，颜色信息不是直接由图片的像素所携带，而是存放在一个单独的颜色表中或者调色板中。
+
+从上面贴出来的`IM`和`GM`的代码对比发现，下面两段代码类似：
+
+``` c++
+// IM
+if (((resize_traits & CopyPixelTrait) != 0) ||
+    (GetPixelWriteMask(resize_image,q) <= (QuantumRange/2)))
+  {
+    j=(ssize_t) (MagickMin(MagickMax(bisect,(double) start),(double)
+      stop-1.0)+0.5);
+    k=y*(contribution[n-1].pixel-contribution[0].pixel+1)+
+      (contribution[j-start].pixel-contribution[0].pixel);
+    SetPixelChannel(resize_image,channel,p[k*GetPixelChannels(image)+i],
+      q);
+    continue;
+  }
+```
+
+``` c++
+// GM
+if ((indexes != (IndexPacket *) NULL) &&
+    (source_indexes != (IndexPacket *) NULL))
+  {
+    i=Min(Max((long) (center+0.5),start),stop-1);
+    j=y*(contribution[n-1].pixel-contribution[0].pixel+1)+
+      (contribution[i-start].pixel-contribution[0].pixel);
+    indexes[y]=source_indexes[j];
+  }
+```
+
+依然参考`InitializePixelChannelMap()`的代码，结合刚刚知道的`GM`对于`PseudoClass`和`CMYKColorspace`时`indexes`有效，在`IM`中则`CopyPixelTrait`对应`IndexPixelChannel`：
+
+``` c++
+if (image->colorspace == CMYKColorspace)
+  SetPixelChannelAttributes(image,BlackPixelChannel,trait,n++);
+if (image->alpha_trait != UndefinedPixelTrait)
+  SetPixelChannelAttributes(image,AlphaPixelChannel,CopyPixelTrait,n++);
+if (image->storage_class == PseudoClass)
+  SetPixelChannelAttributes(image,IndexPixelChannel,CopyPixelTrait,n++);
+if ((image->channels & ReadMaskChannel) != 0)
+  SetPixelChannelAttributes(image,ReadMaskPixelChannel,CopyPixelTrait,n++);
+if ((image->channels & WriteMaskChannel) != 0)
+  SetPixelChannelAttributes(image,WriteMaskPixelChannel,CopyPixelTrait,n++);
+if ((image->channels & CompositeMaskChannel) != 0)
+  SetPixelChannelAttributes(image,CompositeMaskPixelChannel,CopyPixelTrait,
+    n++);
+```
+
+不同的是`IM`中`CMYKColorspace`没有`CopyPixelTrait`特性。
+
+小结一下：以目前的开发状态，将`IM`中的`CopyPixelTrait`与`GM`中的`indexes`对应起来。
