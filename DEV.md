@@ -698,3 +698,24 @@ static const FilterInfo
 ```
 
 明显可见，`GM`中处理相对于`IM`简单多了，所以上面的代码我仍然保持它被注释状态。
+
+## <2022-03-26 Sat>
+
+### 又一个闪退问题
+
+有一个星期没碰了，今天突然发现：
+
+``` shellsession
+[ysouyno@arch ~]$ export MAGICK_OCL_DEVICE=true
+[ysouyno@arch ~]$ gm display ~/temp/bg1a.jpg
+Abort was called at 39 line in file:
+/build/intel-compute-runtime/src/compute-runtime-22.11.22682/shared/source/built_ins/built_ins.cpp
+gm display: abort due to signal 6 (SIGABRT) "Abort"...
+Aborted (core dumped)
+[ysouyno@arch ~]$ clinfo
+Abort was called at 39 line in file:
+/build/intel-compute-runtime/src/compute-runtime-22.11.22682/shared/source/built_ins/built_ins.cpp
+Aborted (core dumped)
+```
+
+连`clinfo`都运行不了了，看来肯定不是我代码的问题。发现`intel-compute-runtime`的版本也已经更新了。
