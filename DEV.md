@@ -1,3 +1,37 @@
+<!-- markdown-toc start - Don't edit this section. Run M-x markdown-toc-refresh-toc -->
+**Table of Contents**
+
+- [`gm-ocl`开发记录](#gm-ocl开发记录)
+    - [<2022-02-24 Thu>](#2022-02-24-thu)
+        - [增加`--enable-opencl`参数](#增加--enable-opencl参数)
+    - [<2022-02-25 Fri>](#2022-02-25-fri)
+        - [关于`AccelerateResizeImage()`的链接问题](#关于accelerateresizeimage的链接问题)
+    - [<2022-03-02 Wed>](#2022-03-02-wed)
+        - [在`archlinux`上为`Intel`启用`OpenCL`](#在archlinux上为intel启用opencl)
+        - [调试`RunOpenCLBenchmark()`时的崩溃问题](#调试runopenclbenchmark时的崩溃问题)
+    - [<2022-03-07 Mon>](#2022-03-07-mon)
+        - [调用`clCreateBuffer()`产生异常问题（一）](#调用clcreatebuffer产生异常问题一)
+        - [`vscode`环境](#vscode环境)
+        - [调用`clCreateBuffer()`产生异常问题（二）](#调用clcreatebuffer产生异常问题二)
+    - [<2022-03-09 Wed>](#2022-03-09-wed)
+        - [调用`clCreateBuffer()`产生异常问题（三）](#调用clcreatebuffer产生异常问题三)
+- [<2022-03-15 Tue>](#2022-03-15-tue)
+    - [-](#-)
+    - [调用`clCreateBuffer()`产生异常问题（五）](#调用clcreatebuffer产生异常问题五)
+    - [<2022-03-16 Wed>](#2022-03-16-wed)
+        - [调用`clCreateBuffer()`产生异常问题（六）](#调用clcreatebuffer产生异常问题六)
+    - [<2022-03-17 Thu>](#2022-03-17-thu)
+        - [关于`IM`中的`number_channels`成员（一）](#关于im中的number_channels成员一)
+    - [<2022-03-18 Fri>](#2022-03-18-fri)
+        - [关于`gpuSupportedResizeWeighting()`的代码能否省略](#关于gpusupportedresizeweighting的代码能否省略)
+    - [<2022-03-26 Sat>](#2022-03-26-sat)
+        - [又一个闪退问题](#又一个闪退问题)
+        - [对`IM`的`number_channels`及`PixelChannelMap`结构体中的`channel`和`offset`成员的理解](#对im的number_channels及pixelchannelmap结构体中的channel和offset成员的理解)
+    - [<2022-03-28 Mon>](#2022-03-28-mon)
+        - [关于`IM`中的`number_channels`成员（二）](#关于im中的number_channels成员二)
+
+<!-- markdown-toc end -->
+
 # `gm-ocl`开发记录
 
 ## <2022-02-24 Thu>
@@ -573,7 +607,7 @@ Aborted (core dumped)
 
 ## <2022-03-17 Thu>
 
-### 关于`IM`中的`number_channels`成员
+### 关于`IM`中的`number_channels`成员（一）
 
 在`IM`中`number_channels`成员出现频率有点高，经调试发现`IM`中图片对象初始化时通过调用`OpenPixelCache()`然后在`InitializePixelChannelMap()`中设置`number_channels`的值。这个函数的内部大量使用了`GM`中没有类型`PixelChannel`和`PixelTrait`，不太好把它给搬到`GM`中。
 
@@ -1014,3 +1048,28 @@ if ((image->channels & CompositeMaskChannel) != 0)
 不同的是`IM`中`CMYKColorspace`没有`CopyPixelTrait`特性。
 
 小结一下：以目前的开发状态，将`IM`中的`CopyPixelTrait`与`GM`中的`indexes`对应起来。
+
+## <2022-03-28 Mon>
+
+### 关于`IM`中的`number_channels`成员（二）
+
+在“[关于`IM`中的`number_channels`成员（一）](#关于im中的number_channels成员一)”的结尾提到将计算出来的`number_channels`值加`1`才能显示正确的图形，之前说它是临时方案，看来这次要将它变成永久的了。
+
+``` c++
+number_channels=(cl_uint) calc_image_number_channels(image)+1;
+```
+
+通过详细阅读`GM`和`IM`的`HorizontalFilter()`函数发现`IM`的最内层循环是通过：
+
+``` c++
+static inline size_t GetPixelChannels(const Image *magick_restrict image)
+{
+  return(image->number_channels);
+}
+```
+
+来获得的，而`GM`中没有这么做，它比`IM`少了刚刚提到的这一层循环，改为固定设置四个通道的值。代码在前面的笔记中已给出，见：“[对`IM`的`number_channels`及`PixelChannelMap`结构体中的`channel`和`offset`成员的理解](#对im的number_channels及pixelchannelmap结构体中的channel和offset成员的理解)”。
+
+我觉得这样的话反而简单了，我需要修改`kernel`函数和`GM`的自身处理相匹配，或者去掉`number_channels`成员，用固定值`4`代替？
+
+`kernel`函数我相信现在修改它没什么难度，这两天翻来覆去的看`accelerate-kernels-private.h:ResizeVerticalFilter()`函数并和`HorizontalFilter()`进行对比理解，现在已经胸有成竹了。
