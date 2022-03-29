@@ -241,7 +241,7 @@ static MagickCLEnv getOpenCLEnvironment(ExceptionInfo* exception)
 
 static MagickBooleanType resizeHorizontalFilter(MagickCLDevice device,
   cl_command_queue queue,const Image *image,Image *filteredImage,
-  cl_mem imageBuffer,cl_uint number_channels,cl_uint columns,cl_uint rows,
+  cl_mem imageBuffer,cl_uint matte_or_cmyk,cl_uint columns,cl_uint rows,
   cl_mem resizedImageBuffer,cl_uint resizedColumns,cl_uint resizedRows,
   const FilterInfo *resizeFilter,const double blur,
   cl_mem resizeFilterCubicCoefficients,
@@ -324,8 +324,7 @@ RestoreMSCWarning
   {
     /* calculate the local memory size needed per workgroup */
     numCachedPixels=(int) ceil((pixelPerWorkgroup-1)/xFactor+2*support);
-    imageCacheLocalMemorySize=numCachedPixels*sizeof(CLQuantum)*
-      number_channels;
+    imageCacheLocalMemorySize=numCachedPixels*sizeof(CLQuantum)*4;
     totalLocalMemorySize=imageCacheLocalMemorySize;
 
     /* local size for the pixel accumulator */
@@ -337,10 +336,7 @@ RestoreMSCWarning
     totalLocalMemorySize+=weightAccumulatorLocalMemorySize;
 
     /* local memory size for the gamma accumulator */
-    if ((number_channels == 4) || (number_channels == 2))
-      gammaAccumulatorLocalMemorySize=chunkSize*sizeof(float);
-    else
-      gammaAccumulatorLocalMemorySize=sizeof(float);
+    gammaAccumulatorLocalMemorySize=chunkSize*sizeof(float);
     totalLocalMemorySize+=gammaAccumulatorLocalMemorySize;
 
     if (totalLocalMemorySize <= device->local_memory_size)
@@ -383,7 +379,7 @@ RestoreMSCWarning
 
   i=0;
   status =SetOpenCLKernelArg(horizontalKernel,i++,sizeof(cl_mem),(void*)&imageBuffer);
-  status|=SetOpenCLKernelArg(horizontalKernel,i++,sizeof(cl_uint),(void*)&number_channels);
+  status|=SetOpenCLKernelArg(horizontalKernel,i++,sizeof(cl_uint),(void*)&matte_or_cmyk);
   status|=SetOpenCLKernelArg(horizontalKernel,i++,sizeof(cl_uint),(void*)&columns);
   status|=SetOpenCLKernelArg(horizontalKernel,i++,sizeof(cl_uint),(void*)&rows);
   status|=SetOpenCLKernelArg(horizontalKernel,i++,sizeof(cl_mem),(void*)&resizedImageBuffer);
@@ -431,7 +427,7 @@ cleanup:
 
 static MagickBooleanType resizeVerticalFilter(MagickCLDevice device,
   cl_command_queue queue,const Image *image,Image * filteredImage,
-  cl_mem imageBuffer,cl_uint number_channels,cl_uint columns,cl_uint rows,
+  cl_mem imageBuffer,cl_uint matte_or_cmyk,cl_uint columns,cl_uint rows,
   cl_mem resizedImageBuffer,cl_uint resizedColumns,cl_uint resizedRows,
   const FilterInfo *resizeFilter,const double blur,
   cl_mem resizeFilterCubicCoefficients,
@@ -514,8 +510,7 @@ RestoreMSCWarning
   {
     /* calculate the local memory size needed per workgroup */
     numCachedPixels=(int)ceil((pixelPerWorkgroup-1)/yFactor+2*support);
-    imageCacheLocalMemorySize=numCachedPixels*sizeof(CLQuantum)*
-      number_channels;
+    imageCacheLocalMemorySize=numCachedPixels*sizeof(CLQuantum)*4;
     totalLocalMemorySize=imageCacheLocalMemorySize;
 
     /* local size for the pixel accumulator */
@@ -527,10 +522,7 @@ RestoreMSCWarning
     totalLocalMemorySize+=weightAccumulatorLocalMemorySize;
 
     /* local memory size for the gamma accumulator */
-    if ((number_channels == 4) || (number_channels == 2))
-      gammaAccumulatorLocalMemorySize=chunkSize*sizeof(float);
-    else
-      gammaAccumulatorLocalMemorySize=sizeof(float);
+    gammaAccumulatorLocalMemorySize=chunkSize*sizeof(float);
     totalLocalMemorySize+=gammaAccumulatorLocalMemorySize;
 
     if (totalLocalMemorySize <= device->local_memory_size)
@@ -573,7 +565,7 @@ RestoreMSCWarning
 
   i=0;
   status =SetOpenCLKernelArg(verticalKernel,i++,sizeof(cl_mem),(void*)&imageBuffer);
-  status|=SetOpenCLKernelArg(verticalKernel,i++,sizeof(cl_uint),(void*)&number_channels);
+  status|=SetOpenCLKernelArg(verticalKernel,i++,sizeof(cl_uint),(void*)&matte_or_cmyk);
   status|=SetOpenCLKernelArg(verticalKernel,i++,sizeof(cl_uint),(void*)&columns);
   status|=SetOpenCLKernelArg(verticalKernel,i++,sizeof(cl_uint),(void*)&rows);
   status|=SetOpenCLKernelArg(verticalKernel,i++,sizeof(cl_mem),(void*)&resizedImageBuffer);
@@ -632,7 +624,7 @@ static Image *ComputeResizeImage(const Image* image,MagickCLEnv clEnv,
     tempImageBuffer;
 
   cl_uint
-    number_channels;
+    matte_or_cmyk;
 
   const double
     *resizeFilterCoefficient;
@@ -693,13 +685,12 @@ static Image *ComputeResizeImage(const Image* image,MagickCLEnv clEnv,
 
   // TODO: no number_channels in struct _Image in GM
   // number_channels=(cl_uint) image->number_channels;
-  // TODO: need plus 1 or the result is wrong
-  number_channels=(cl_uint) calc_image_number_channels(image)+1;
+  matte_or_cmyk=(image->matte || image->colorspace == CMYKColorspace)?1:0;
   xFactor=(float) resizedColumns/(float) image->columns;
   yFactor=(float) resizedRows/(float) image->rows;
   if (xFactor > yFactor)
   {
-    length=resizedColumns*image->rows*number_channels;
+    length=resizedColumns*image->rows*4;
     tempImageBuffer=CreateOpenCLBuffer(device,CL_MEM_READ_WRITE,length*
       sizeof(CLQuantum),(void *) NULL);
     if (tempImageBuffer == (cl_mem) NULL)
@@ -710,7 +701,7 @@ static Image *ComputeResizeImage(const Image* image,MagickCLEnv clEnv,
     }
 
     outputReady=resizeHorizontalFilter(device,queue,image,filteredImage,
-      imageBuffer,number_channels,(cl_uint) image->columns,
+      imageBuffer,matte_or_cmyk,(cl_uint) image->columns,
       (cl_uint) image->rows,tempImageBuffer,(cl_uint) resizedColumns,
       (cl_uint) image->rows,filter_info,blur,cubicCoefficientsBuffer,xFactor,
       exception);
@@ -718,7 +709,7 @@ static Image *ComputeResizeImage(const Image* image,MagickCLEnv clEnv,
       goto cleanup;
 
     outputReady=resizeVerticalFilter(device,queue,image,filteredImage,
-      tempImageBuffer,number_channels,(cl_uint) resizedColumns,
+      tempImageBuffer,matte_or_cmyk,(cl_uint) resizedColumns,
       (cl_uint) image->rows,filteredImageBuffer,(cl_uint) resizedColumns,
       (cl_uint) resizedRows,filter_info,blur,cubicCoefficientsBuffer,yFactor,
       exception);
@@ -727,7 +718,7 @@ static Image *ComputeResizeImage(const Image* image,MagickCLEnv clEnv,
   }
   else
   {
-    length=image->columns*resizedRows*number_channels;
+    length=image->columns*resizedRows*4;
     tempImageBuffer=CreateOpenCLBuffer(device,CL_MEM_READ_WRITE,length*
       sizeof(CLQuantum),(void *) NULL);
     if (tempImageBuffer == (cl_mem) NULL)
@@ -738,7 +729,7 @@ static Image *ComputeResizeImage(const Image* image,MagickCLEnv clEnv,
     }
 
     outputReady=resizeVerticalFilter(device,queue,image,filteredImage,
-      imageBuffer,number_channels,(cl_uint) image->columns,
+      imageBuffer,matte_or_cmyk,(cl_uint) image->columns,
       (cl_int) image->rows,tempImageBuffer,(cl_uint) image->columns,
       (cl_uint) resizedRows,filter_info,blur,cubicCoefficientsBuffer,yFactor,
       exception);
@@ -746,7 +737,7 @@ static Image *ComputeResizeImage(const Image* image,MagickCLEnv clEnv,
       goto cleanup;
 
     outputReady=resizeHorizontalFilter(device,queue,image,filteredImage,
-      tempImageBuffer,number_channels,(cl_uint) image->columns,
+      tempImageBuffer,matte_or_cmyk,(cl_uint) image->columns,
       (cl_uint) resizedRows,filteredImageBuffer,(cl_uint) resizedColumns,
       (cl_uint) resizedRows,filter_info,blur,cubicCoefficientsBuffer,xFactor,
       exception);

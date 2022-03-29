@@ -2453,7 +2453,7 @@ OPENCL_ENDIF()
 
   STRINGIFY(
   __kernel __attribute__((reqd_work_group_size(256, 1, 1)))
-    void ResizeHorizontalFilter(const __global CLQuantum *inputImage, const unsigned int number_channels,
+    void ResizeHorizontalFilter(const __global CLQuantum *inputImage, const unsigned int matte_or_cmyk,
       const unsigned int inputColumns, const unsigned int inputRows, __global CLQuantum *filteredImage,
       const unsigned int filteredColumns, const unsigned int filteredRows, const float xFactor,
       const int resizeFilterType, const int resizeWindowType, const __global float *resizeFilterCubicCoefficients,
@@ -2477,12 +2477,11 @@ OPENCL_ENDIF()
 
     // cache the input pixels into local memory
     const unsigned int y = get_global_id(1);
-    const unsigned int pos = getPixelIndex(number_channels, inputColumns, cacheRangeStartX, y);
-    const unsigned int num_elements = (cacheRangeEndX - cacheRangeStartX) * number_channels;
+    const unsigned int pos = getPixelIndex(4, inputColumns, cacheRangeStartX, y);
+    const unsigned int num_elements = (cacheRangeEndX - cacheRangeStartX) * 4;
     event_t e = async_work_group_copy(inputImageCache, inputImage + pos, num_elements, 0);
     wait_group_events(1, &e);
 
-    unsigned int alpha_index = (number_channels == 4) || (number_channels == 2) ? number_channels - 1 : 0;
     unsigned int totalNumChunks = (actualNumPixelToCompute+pixelChunkSize-1)/pixelChunkSize;
     for (unsigned int chunk = 0; chunk < totalNumChunks; chunk++)
     {
@@ -2498,7 +2497,7 @@ OPENCL_ENDIF()
 
       float4 filteredPixel = (float4)0.0f;
       float density = 0.0f;
-      float gamma = 0.0f;
+      float gamma = 0.0f; // Here `gamma' is `normalize' in GM.
       // -1 means this workitem doesn't participate in the computation
       if (pixelIndex != -1)
       {
@@ -2531,33 +2530,26 @@ OPENCL_ENDIF()
 
             float4 cp = (float4)0.0f;
 
-            __local CLQuantum *p = inputImageCache + (cacheIndex*number_channels);
+            __local CLQuantum *p = inputImageCache + (cacheIndex*4);
             cp.x = (float) *(p);
-            if (number_channels > 2)
+            cp.y = (float) *(p + 1);
+            cp.z = (float) *(p + 2);
+
+            if (matte_or_cmyk != 0)
             {
-              cp.y = (float) *(p + 1);
-              cp.z = (float) *(p + 2);
-            }
+              cp.w = (float) *(p + 3);
 
-            if (alpha_index != 0)
-            {
-              cp.w = (float) *(p + alpha_index);
+              // float alpha = weight * QuantumScale * cp.w;
+              float alpha = weight * (1 - (double) cp.w / 255);
 
-              float alpha = weight * QuantumScale * cp.w;
-
-              // filteredPixel.x += alpha * cp.x;
-              // filteredPixel.y += alpha * cp.y;
-              // filteredPixel.z += alpha * cp.z;
-              // filteredPixel.w += weight * cp.w;
-              filteredPixel.x += cp.x;
-              filteredPixel.y += cp.y;
-              filteredPixel.z += cp.z;
-              filteredPixel.w += cp.w;
+              filteredPixel.x += alpha * cp.x;
+              filteredPixel.y += alpha * cp.y;
+              filteredPixel.z += alpha * cp.z;
+              filteredPixel.w += weight * cp.w;
               gamma += alpha;
             }
             else
-              // filteredPixel += ((float4) weight)*cp;
-              filteredPixel = cp;
+              filteredPixel += ((float4) weight)*cp;
 
             density += weight;
           }
@@ -2568,7 +2560,7 @@ OPENCL_ENDIF()
       if (itemID < actualNumPixelInThisChunk) {
         outputPixelCache[itemID] = (float4)0.0f;
         densityCache[itemID] = 0.0f;
-        if (alpha_index != 0)
+        if (matte_or_cmyk != 0)
           gammaCache[itemID] = 0.0f;
       }
       barrier(CLK_LOCAL_MEM_FENCE);
@@ -2579,7 +2571,7 @@ OPENCL_ENDIF()
           if (itemID%numItems == i) {
             outputPixelCache[pixelIndex]+=filteredPixel;
             densityCache[pixelIndex]+=density;
-            if (alpha_index != 0)
+            if (matte_or_cmyk != 0)
               gammaCache[pixelIndex]+=gamma;
           }
         }
@@ -2591,27 +2583,27 @@ OPENCL_ENDIF()
         float4 filteredPixel = outputPixelCache[itemID];
 
         float gamma = 0.0f;
-        if (alpha_index != 0)
+        if (matte_or_cmyk != 0)
           gamma = gammaCache[itemID];
 
         float density = densityCache[itemID];
         if ((density != 0.0f) && (density != 1.0f))
         {
           density = PerceptibleReciprocal(density);
-          // filteredPixel *= (float4) density;
-          if (alpha_index != 0)
+          filteredPixel *= (float4) density;
+          if (matte_or_cmyk != 0)
             gamma *= density;
         }
 
-        if (alpha_index != 0)
+        if (matte_or_cmyk != 0)
         {
-          // gamma = PerceptibleReciprocal(gamma);
-          // filteredPixel.x *= gamma;
-          // filteredPixel.y *= gamma;
-          // filteredPixel.z *= gamma;
+          gamma = PerceptibleReciprocal(gamma);
+          filteredPixel.x *= gamma;
+          filteredPixel.y *= gamma;
+          filteredPixel.z *= gamma;
         }
 
-        WriteAllChannels(filteredImage, number_channels, filteredColumns, chunkStartX + itemID, y, filteredPixel);
+        WriteAllChannels(filteredImage, 4, filteredColumns, chunkStartX + itemID, y, filteredPixel);
       }
     }
   }
@@ -2620,7 +2612,7 @@ OPENCL_ENDIF()
 
   STRINGIFY(
  __kernel __attribute__((reqd_work_group_size(1, 256, 1)))
-    void ResizeVerticalFilter(const __global CLQuantum *inputImage, const unsigned int number_channels,
+    void ResizeVerticalFilter(const __global CLQuantum *inputImage, const unsigned int matte_or_cmyk,
       const unsigned int inputColumns, const unsigned int inputRows, __global CLQuantum *filteredImage,
       const unsigned int filteredColumns, const unsigned int filteredRows, const float yFactor,
       const int resizeFilterType, const int resizeWindowType, const __global float *resizeFilterCubicCoefficients,
@@ -2644,16 +2636,15 @@ OPENCL_ENDIF()
 
     // cache the input pixels into local memory
     const unsigned int x = get_global_id(0);
-    unsigned int pos = getPixelIndex(number_channels, inputColumns, x, cacheRangeStartY);
+    unsigned int pos = getPixelIndex(4, inputColumns, x, cacheRangeStartY);
     unsigned int rangeLength = cacheRangeEndY-cacheRangeStartY;
-    unsigned int stride = inputColumns * number_channels;
-    for (unsigned int i = 0; i < number_channels; i++)
+    unsigned int stride = inputColumns * 4;
+    for (unsigned int i = 0; i < 4; i++)
     {
       event_t e = async_work_group_strided_copy(inputImageCache + (rangeLength*i), inputImage+pos+i, rangeLength, stride, 0);
       wait_group_events(1,&e);
     }
 
-    unsigned int alpha_index = (number_channels == 4) || (number_channels == 2) ? number_channels - 1 : 0;
     unsigned int totalNumChunks = (actualNumPixelToCompute+pixelChunkSize-1)/pixelChunkSize;
     for (unsigned int chunk = 0; chunk < totalNumChunks; chunk++)
     {
@@ -2669,7 +2660,7 @@ OPENCL_ENDIF()
 
       float4 filteredPixel = (float4)0.0f;
       float density = 0.0f;
-      float gamma = 0.0f;
+      float gamma = 0.0f; // Here `gamma' is `normalize' in GM.
       // -1 means this workitem doesn't participate in the computation
       if (pixelIndex != -1)
       {
@@ -2704,31 +2695,24 @@ OPENCL_ENDIF()
 
             __local CLQuantum *p = inputImageCache + cacheIndex;
             cp.x = (float) *(p);
-            if (number_channels > 2)
+            cp.y = (float) *(p + rangeLength);
+            cp.z = (float) *(p + (rangeLength * 2));
+
+            if (matte_or_cmyk != 0)
             {
-              cp.y = (float) *(p + rangeLength);
-              cp.z = (float) *(p + (rangeLength * 2));
-            }
+              cp.w = (float) *(p + (rangeLength * 3));
 
-            if (alpha_index != 0)
-            {
-              cp.w = (float) *(p + (rangeLength * alpha_index));
+              // float alpha = weight * QuantumScale * cp.w;
+              float alpha = weight * (1 - (double) cp.w / 255);
 
-              float alpha = weight * QuantumScale * cp.w;
-
-              // filteredPixel.x += alpha * cp.x;
-              // filteredPixel.y += alpha * cp.y;
-              // filteredPixel.z += alpha * cp.z;
-              // filteredPixel.w += weight * cp.w;
-              filteredPixel.x += cp.x;
-              filteredPixel.y += cp.y;
-              filteredPixel.z += cp.z;
-              filteredPixel.w += cp.w;
+              filteredPixel.x += alpha * cp.x;
+              filteredPixel.y += alpha * cp.y;
+              filteredPixel.z += alpha * cp.z;
+              filteredPixel.w += weight * cp.w;
               gamma += alpha;
             }
             else
-              // filteredPixel += ((float4) weight)*cp;
-              filteredPixel = cp;
+              filteredPixel += ((float4) weight)*cp;
 
             density += weight;
           }
@@ -2739,7 +2723,7 @@ OPENCL_ENDIF()
       if (itemID < actualNumPixelInThisChunk) {
         outputPixelCache[itemID] = (float4)0.0f;
         densityCache[itemID] = 0.0f;
-        if (alpha_index != 0)
+        if (matte_or_cmyk != 0)
           gammaCache[itemID] = 0.0f;
       }
       barrier(CLK_LOCAL_MEM_FENCE);
@@ -2750,7 +2734,7 @@ OPENCL_ENDIF()
           if (itemID%numItems == i) {
             outputPixelCache[pixelIndex]+=filteredPixel;
             densityCache[pixelIndex]+=density;
-            if (alpha_index != 0)
+            if (matte_or_cmyk != 0)
               gammaCache[pixelIndex]+=gamma;
           }
         }
@@ -2762,27 +2746,27 @@ OPENCL_ENDIF()
         float4 filteredPixel = outputPixelCache[itemID];
 
         float gamma = 0.0f;
-        if (alpha_index != 0)
+        if (matte_or_cmyk != 0)
           gamma = gammaCache[itemID];
 
         float density = densityCache[itemID];
         if ((density != 0.0f) && (density != 1.0f))
         {
           density = PerceptibleReciprocal(density);
-          // filteredPixel *= (float4) density;
-          if (alpha_index != 0)
+          filteredPixel *= (float4) density;
+          if (matte_or_cmyk != 0)
             gamma *= density;
         }
 
-        if (alpha_index != 0)
+        if (matte_or_cmyk != 0)
         {
-          // gamma = PerceptibleReciprocal(gamma);
-          // filteredPixel.x *= gamma;
-          // filteredPixel.y *= gamma;
-          // filteredPixel.z *= gamma;
+          gamma = PerceptibleReciprocal(gamma);
+          filteredPixel.x *= gamma;
+          filteredPixel.y *= gamma;
+          filteredPixel.z *= gamma;
         }
 
-        WriteAllChannels(filteredImage, number_channels, filteredColumns, x, chunkStartY + itemID, filteredPixel);
+        WriteAllChannels(filteredImage, 4, filteredColumns, x, chunkStartY + itemID, filteredPixel);
       }
     }
   }

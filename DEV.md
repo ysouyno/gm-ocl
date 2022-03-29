@@ -29,6 +29,8 @@
         - [对`IM`的`number_channels`及`PixelChannelMap`结构体中的`channel`和`offset`成员的理解](#对im的number_channels及pixelchannelmap结构体中的channel和offset成员的理解)
     - [<2022-03-28 Mon>](#2022-03-28-mon)
         - [关于`IM`中的`number_channels`成员（二）](#关于im中的number_channels成员二)
+    - [<2022-03-29 Tue>](#2022-03-29-tue)
+        - [对`number_channels`的处理](#对number_channels的处理)
 
 <!-- markdown-toc end -->
 
@@ -1073,3 +1075,13 @@ static inline size_t GetPixelChannels(const Image *magick_restrict image)
 我觉得这样的话反而简单了，我需要修改`kernel`函数和`GM`的自身处理相匹配，或者去掉`number_channels`成员，用固定值`4`代替？
 
 `kernel`函数我相信现在修改它没什么难度，这两天翻来覆去的看`accelerate-kernels-private.h:ResizeVerticalFilter()`函数并和`HorizontalFilter()`进行对比理解，现在已经胸有成竹了。
+
+## <2022-03-29 Tue>
+
+### 对`number_channels`的处理
+
+今天开始尝试对`number_channels`进行处理，我的想法是既然`number_channels`在`GM`中已经失去了它的意义，那倒不如直接把它删除掉，在它曾经出现过的地方用数字`4`代替。当然也不是所有`number_channels`的地方都要修改，要看具体情况而定。
+
+首先，我从`IM`中重新拷贝了`accelerate-kernels-private.h`文件，因为之前那些的修改是基于错误的`number_channels`逻辑的。其次`number_channels`的传参部分不能删除，因为原`GM`中对于图片是否有透明通道或者是否是`CMYK`的格式有做判断，因此将它改为`matte_or_cmyk`来表明是否是四通道，`1`表示有，`0`表示没有，这样的话在`accelerate-kernels-private.h`的`ResizeHorizontalFilter()`函数中`alpha_index`就可以删除了。最后在`WriteAllChannels()`处的调用，必须以`4`传入，因为即使原图不是四通道，它的第四个通道也要赋值以保证图片计算的正确性。
+
+经过这些修改之后测试图片显示正常。
