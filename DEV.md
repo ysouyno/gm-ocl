@@ -33,6 +33,7 @@
         - [对`number_channels`的处理](#对number_channels的处理)
     - [<2022-03-30 Wed>](#2022-03-30-wed)
         - [一个低级错误引发的`core dumped`](#一个低级错误引发的core-dumped)
+        - [关于`error: use of type 'double' requires cl_khr_fp64 support`错误](#关于error-use-of-type-double-requires-cl_khr_fp64-support错误)
 
 <!-- markdown-toc end -->
 
@@ -1214,3 +1215,22 @@ int main() {
 ```
 
 所以要想解决这个`core dumped`的问题，就老老实实地按照`GM`的代码风格，调用完`DestroyImage()`后再紧接着赋一次`0`。
+
+### 关于`error: use of type 'double' requires cl_khr_fp64 support`错误
+
+今天安装了最新的`intel-compute-runtime`，看来已经修复了`core dumped`问题，见：“[又一个闪退问题](#又一个闪退问题)”中提到的问题。
+
+``` shellsession
+% sudo pacman -Ss intel-compute-runtime
+[sudo] password for ysouyno:
+community/intel-compute-runtime 22.12.22749-1 [installed]
+    Intel(R) Graphics Compute Runtime for oneAPI Level Zero and OpenCL(TM) Driver
+```
+
+试运行了一下我的最新代码，发现有`opencl`编译错误：
+
+``` text
+error: use of type 'double' requires cl_khr_fp64 support
+```
+
+先只是简单的将`double`换成`float`来解决这个问题。

@@ -2540,7 +2540,8 @@ OPENCL_ENDIF()
               cp.w = (float) *(p + 3);
 
               // float alpha = weight * QuantumScale * cp.w;
-              float alpha = weight * (1 - (double) cp.w / 255);
+              // error: use of type 'double' requires cl_khr_fp64 support
+              float alpha = weight * (1 - (float) cp.w / 255);
 
               filteredPixel.x += alpha * cp.x;
               filteredPixel.y += alpha * cp.y;
@@ -2703,7 +2704,8 @@ OPENCL_ENDIF()
               cp.w = (float) *(p + (rangeLength * 3));
 
               // float alpha = weight * QuantumScale * cp.w;
-              float alpha = weight * (1 - (double) cp.w / 255);
+              // error: use of type 'double' requires cl_khr_fp64 support
+              float alpha = weight * (1 - (float) cp.w / 255);
 
               filteredPixel.x += alpha * cp.x;
               filteredPixel.y += alpha * cp.y;
