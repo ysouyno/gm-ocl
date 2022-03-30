@@ -34,6 +34,7 @@
     - [<2022-03-30 Wed>](#2022-03-30-wed)
         - [一个低级错误引发的`core dumped`](#一个低级错误引发的core-dumped)
         - [关于`error: use of type 'double' requires cl_khr_fp64 support`错误](#关于error-use-of-type-double-requires-cl_khr_fp64-support错误)
+        - [关于`IM`中`resizeHorizontalFilter()`中的`scale`变量](#关于im中resizehorizontalfilter中的scale变量)
 
 <!-- markdown-toc end -->
 
@@ -1234,3 +1235,13 @@ error: use of type 'double' requires cl_khr_fp64 support
 ```
 
 先只是简单的将`double`换成`float`来解决这个问题。
+
+### 关于`IM`中`resizeHorizontalFilter()`中的`scale`变量
+
+分析`IM`的`accelerate.c:resizeHorizontalFilter()`的源代码发现它的`scale`变量计算后只停留在此函数内，并没有往下传递进`kernel`函数，关于`scale`的计算代码是不是多余的？从目前我理解到的`IM`的逻辑来看，我认为它是多余的。因为向下传递给`kernel`函数的是`resizeFilterScale`变量，这个变量的值不依赖`scale`变量，而是通过传参获取现有的结构体中的值，且它进入`kernel`函数`ResizeHorizontalFilter()`后通过调用`getResizeFilterWeight()`函数再以`filterType`获得计算函数来进一步计算`scale`值，进而最终返回`weight`值。
+
+另外发现在`kernel`函数`ResizeHorizontalFilter()`的开始部分`scale`又被计算了一次，因此我觉得可以确认`accelerate.c:resizeHorizontalFilter()`中的`scale`变量是多余的。
+
+我在`GM`中应该怎么处理呢？考虑到`GPU`并行运行的影响，`scale`的值不依赖各个`work-group`或`work-item`。因此我认为将`scale`赋值给`resizeFilterScale`传进`kernel`函数不会影响计算结果，那这样的话`kernel`函数中的`scale`计算就显得有点多余了。
+
+备注：代码写着写着，发现个严重问题，`OpenCL`不支持函数指针，那怎么把过滤函数传进`kernel`函数呢？
