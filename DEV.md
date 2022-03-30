@@ -15,9 +15,9 @@
         - [调用`clCreateBuffer()`产生异常问题（二）](#调用clcreatebuffer产生异常问题二)
     - [<2022-03-09 Wed>](#2022-03-09-wed)
         - [调用`clCreateBuffer()`产生异常问题（三）](#调用clcreatebuffer产生异常问题三)
-- [<2022-03-15 Tue>](#2022-03-15-tue)
-    - [-](#-)
-    - [调用`clCreateBuffer()`产生异常问题（五）](#调用clcreatebuffer产生异常问题五)
+    - [<2022-03-15 Tue>](#2022-03-15-tue)
+        - [调用`clCreateBuffer()`产生异常问题（四）](#调用clcreatebuffer产生异常问题四)
+        - [调用`clCreateBuffer()`产生异常问题（五）](#调用clcreatebuffer产生异常问题五)
     - [<2022-03-16 Wed>](#2022-03-16-wed)
         - [调用`clCreateBuffer()`产生异常问题（六）](#调用clcreatebuffer产生异常问题六)
     - [<2022-03-17 Thu>](#2022-03-17-thu)
@@ -457,7 +457,7 @@ $ gm display ~/temp/bg1a.jpg
 
 注：`IM`的日志配置文件：`usr/local/etc/ImageMagick-7/log.xml`。
 
-# <2022-03-15 Tue>
+## <2022-03-15 Tue>
 
 ### 调用`clCreateBuffer()`产生异常问题（四）
 
