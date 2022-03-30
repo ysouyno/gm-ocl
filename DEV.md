@@ -31,6 +31,8 @@
         - [关于`IM`中的`number_channels`成员（二）](#关于im中的number_channels成员二)
     - [<2022-03-29 Tue>](#2022-03-29-tue)
         - [对`number_channels`的处理](#对number_channels的处理)
+    - [<2022-03-30 Wed>](#2022-03-30-wed)
+        - [一个低级错误引发的`core dumped`](#一个低级错误引发的core-dumped)
 
 <!-- markdown-toc end -->
 
@@ -1085,3 +1087,130 @@ static inline size_t GetPixelChannels(const Image *magick_restrict image)
 首先，我从`IM`中重新拷贝了`accelerate-kernels-private.h`文件，因为之前那些的修改是基于错误的`number_channels`逻辑的。其次`number_channels`的传参部分不能删除，因为原`GM`中对于图片是否有透明通道或者是否是`CMYK`的格式有做判断，因此将它改为`matte_or_cmyk`来表明是否是四通道，`1`表示有，`0`表示没有，这样的话在`accelerate-kernels-private.h`的`ResizeHorizontalFilter()`函数中`alpha_index`就可以删除了。最后在`WriteAllChannels()`处的调用，必须以`4`传入，因为即使原图不是四通道，它的第四个通道也要赋值以保证图片计算的正确性。
 
 经过这些修改之后测试图片显示正常。
+
+## <2022-03-30 Wed>
+
+### 一个低级错误引发的`core dumped`
+
+当将图片不断缩小到宽高为`1x1`时会出现如下问题：
+
+``` shellsession
+gm: magick/image.c:1407: DestroyImage: Assertion `image->signature == MagickSignature' failed.
+Aborted (core dumped)
+```
+
+这是因为在`ComputeResizeImage()`函数中当缩小到`1x1`时失败，`outputReady`为`0`导致`DestroyImage(filteredImage);`的调用，但是在销毁`filteredImage`后并没有将其赋`0`导致。
+
+看了一下`GM`的源码：
+
+``` c++
+/*
+  Free memory and set pointer to NULL
+*/
+#define MagickFreeMemory(memory) \
+{ \
+  void *_magick_mp=memory;      \
+  MagickFree(_magick_mp);       \
+  memory=0;                     \
+}
+```
+
+这里明明将传入的指针赋`0`了。难道这段代码不起作用？
+
+其实这个宏是有作用的，但要看怎么使用它。因为`DestroyImage()`是函数调用，实际上传入的指针是一个副本，将副本赋`0`并不影响原来的值，同时也要理解宏和函数调用的不同，这里有两种情况需要考虑：
+
+有如下测试代码：
+
+``` c++
+#include <stdio.h>
+#include <stdlib.h>
+
+typedef void (*MagickFreeFunc)(void *ptr);
+static MagickFreeFunc FreeFunc = free;
+
+void MagickFree(void *memory) {
+  if (memory != (void *)NULL)
+    (FreeFunc)(memory);
+}
+
+#define MagickFreeMemory(memory)                \
+  {                                             \
+    printf("&memory: %p\n", &memory);           \
+    printf(" memory: %p\n", memory);            \
+    void *_magick_mp = memory;                  \
+    MagickFree(_magick_mp);                     \
+    memory = 0;                                 \
+  }
+
+void destroy_image(char *image) { MagickFreeMemory(image); }
+
+int main() {
+  char *image = (char *)malloc(1024);
+  printf("&image : %p\n", &image);
+  printf(" image : %p\n", image);
+  destroy_image(image);
+  printf("&image : %p\n", &image);
+  printf(" image : %p\n", image);
+  return 0;
+}
+```
+
+这是`GM`中的代码使用方式，输出如下：
+
+``` shellsession
+% ./a.out
+&image : 0x7ffc8a46dfb0
+ image : 0x55711df782a0
+&memory: 0x7ffc8a46df88
+ memory: 0x55711df782a0
+&image : 0x7ffc8a46dfb0
+ image : 0x55711df782a0
+```
+
+这里指针并没有变化，因为是函数调用，如果将代码中的`destroy_image()`改为宏`MagickFreeFunc`，则是想要的效果：
+
+``` c++
+#include <stdio.h>
+#include <stdlib.h>
+
+typedef void (*MagickFreeFunc)(void *ptr);
+static MagickFreeFunc FreeFunc = free;
+
+void MagickFree(void *memory) {
+  if (memory != (void *)NULL)
+    (FreeFunc)(memory);
+}
+
+#define MagickFreeMemory(memory)                \
+  {                                             \
+    printf("&memory: %p\n", &memory);           \
+    printf(" memory: %p\n", memory);            \
+    void *_magick_mp = memory;                  \
+    MagickFree(_magick_mp);                     \
+    memory = 0;                                 \
+  }
+
+void destroy_image(char *image) { MagickFreeMemory(image); }
+
+int main() {
+  char *image = (char *)malloc(1024);
+  printf("&image : %p\n", &image);
+  printf(" image : %p\n", image);
+  MagickFreeMemory(image);
+  printf("&image : %p\n", &image);
+  printf(" image : %p\n", image);
+  return 0;
+}
+```
+
+``` shellsession
+% ./a.out
+&image : 0x7ffd7247ae08
+ image : 0x5572b59cf2a0
+&memory: 0x7ffd7247ae08
+ memory: 0x5572b59cf2a0
+&image : 0x7ffd7247ae08
+ image : (nil)
+```
+
+所以要想解决这个`core dumped`的问题，就老老实实地按照`GM`的代码风格，调用完`DestroyImage()`后再紧接着赋一次`0`。

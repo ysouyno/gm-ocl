@@ -760,8 +760,10 @@ cleanup:
   if (device != (MagickCLDevice) NULL)
     ReleaseOpenCLDevice(device);
   if ((outputReady == MagickFalse) && (filteredImage != (Image *) NULL))
-    // filteredImage=DestroyImage(filteredImage);
+  {
     DestroyImage(filteredImage);
+    filteredImage=(Image *) NULL;
+  }
 
   return(filteredImage);
 }
