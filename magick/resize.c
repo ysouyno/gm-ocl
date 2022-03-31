@@ -1424,7 +1424,7 @@ MagickExport Image *ResizeImage(const Image *image,const unsigned long columns,
                           ResizeFilterToString((FilterTypes)i));
 
 #if defined(HAVE_OPENCL)
-  resize_image=AccelerateResizeImage(image,columns,rows,&filters[i],blur,exception);
+  resize_image=AccelerateResizeImage(image,columns,rows,i,&filters[i],blur,exception);
   if (resize_image != (Image*)NULL)
     return (resize_image);
 #endif

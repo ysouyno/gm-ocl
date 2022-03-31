@@ -242,6 +242,28 @@ const char *accelerateKernels =
   STRINGIFY(
     typedef enum
     {
+      UndefinedFilter,
+      PointFilter,
+      BoxFilter,
+      TriangleFilter,
+      HermiteFilter,
+      HanningFilter,
+      HammingFilter,
+      BlackmanFilter,
+      GaussianFilter,
+      QuadraticFilter,
+      CubicFilter,
+      CatromFilter,
+      MitchellFilter,
+      LanczosFilter,
+      BesselFilter,
+      SincFilter
+    } ResizeWeightingFunctionTypeForGM;
+  )
+
+  STRINGIFY(
+    typedef enum
+    {
       UndefinedChannel = 0x0000,
       RedChannel = 0x0001,
       GrayChannel = 0x0001,
@@ -2428,7 +2450,228 @@ OPENCL_ENDIF()
     float weight = scale * applyResizeFilter(xBlur, resizeFilterType, resizeFilterCubicCoefficients);
     return weight;
   }
+  )
 
+  STRINGIFY(
+  float BoxGM(const float x,const float support)
+  {
+    if (x < -0.5)
+      return(0.0);
+    if (x < 0.5)
+      return(1.0);
+    return(0.0);
+  }
+  )
+
+  STRINGIFY(
+  float TriangleGM(const float x,const float support)
+  {
+    if (x < -1.0)
+      return(0.0);
+    if (x < 0.0)
+      return(1.0+x);
+    if (x < 1.0)
+      return(1.0-x);
+    return(0.0);
+  }
+  )
+
+  STRINGIFY(
+  float HermiteGM(const float x,const float support)
+  {
+    if (x < -1.0)
+      return(0.0);
+    if (x < 0.0)
+      return((2.0*(-x)-3.0)*(-x)*(-x)+1.0);
+    if (x < 1.0)
+      return((2.0*x-3.0)*x*x+1.0);
+    return(0.0);
+  }
+  )
+
+  STRINGIFY(
+  float HanningGM(const float x,const float support)
+  {
+    return(0.5+0.5*cos(MagickPI*x));
+  }
+  )
+
+  STRINGIFY(
+  float HammingGM(const float x,const float support)
+  {
+    return(0.54+0.46*cos(MagickPI*x));
+  }
+  )
+
+  STRINGIFY(
+  float BlackmanGM(const float x,const float support)
+  {
+    return(0.42+0.5*cos(MagickPI*x)+0.08*cos(2*MagickPI*x));
+  }
+  )
+
+  STRINGIFY(
+  float GaussianGM(const float x,const float support)
+  {
+    return(exp(-2.0*x*x)*sqrt(2.0/MagickPI));
+  }
+  )
+
+  STRINGIFY(
+  float QuadraticGM(const float x,const float support)
+  {
+    if (x < -1.5)
+      return(0.0);
+    if (x < -0.5)
+      return(0.5*(x+1.5)*(x+1.5));
+    if (x < 0.5)
+      return(0.75-x*x);
+    if (x < 1.5)
+      return(0.5*(x-1.5)*(x-1.5));
+    return(0.0);
+  }
+  )
+
+  STRINGIFY(
+  float CubicGM(const float x,const float support)
+  {
+    if (x < -2.0)
+      return(0.0);
+    if (x < -1.0)
+      return((2.0+x)*(2.0+x)*(2.0+x)/6.0);
+    if (x < 0.0)
+      return((4.0+x*x*(-6.0-3.0*x))/6.0);
+    if (x < 1.0)
+      return((4.0+x*x*(-6.0+3.0*x))/6.0);
+    if (x < 2.0)
+      return((2.0-x)*(2.0-x)*(2.0-x)/6.0);
+    return(0.0);
+  }
+  )
+
+  STRINGIFY(
+  float CatromGM(const float x,const float support)
+  {
+    if (x < -2.0)
+      return(0.0);
+    if (x < -1.0)
+      return(0.5*(4.0+x*(8.0+x*(5.0+x))));
+    if (x < 0.0)
+      return(0.5*(2.0+x*x*(-5.0-3.0*x)));
+    if (x < 1.0)
+      return(0.5*(2.0+x*x*(-5.0+3.0*x)));
+    if (x < 2.0)
+      return(0.5*(4.0+x*(-8.0+x*(5.0-x))));
+    return(0.0);
+  }
+  )
+
+  STRINGIFY(
+  float MitchellGM(const float x,const float support)
+  {
+    // OPENCL_DEFINE( B, (1.0/3.0))
+    // OPENCL_DEFINE( C, (1.0/3.0))
+    // OPENCL_DEFINE(P0, ((  6.0- 2.0*B       )/6.0))
+    // OPENCL_DEFINE(P2, ((-18.0+12.0*B+ 6.0*C)/6.0))
+    // OPENCL_DEFINE(P3, (( 12.0- 9.0*B- 6.0*C)/6.0))
+    // OPENCL_DEFINE(Q0, ((       8.0*B+24.0*C)/6.0))
+    // OPENCL_DEFINE(Q1, ((     -12.0*B-48.0*C)/6.0))
+    // OPENCL_DEFINE(Q2, ((       6.0*B+30.0*C)/6.0))
+    // OPENCL_DEFINE(Q3, ((     - 1.0*B- 6.0*C)/6.0))
+
+    // if (x < -2.0)
+    //   return(0.0);
+    // if (x < -1.0)
+    //   return(Q0-x*(Q1-x*(Q2-x*Q3)));
+    // if (x < 0.0)
+    //   return(P0+x*x*(P2-x*P3));
+    // if (x < 1.0)
+    //   return(P0+x*x*(P2+x*P3));
+    // if (x < 2.0)
+    //   return(Q0+x*(Q1+x*(Q2+x*Q3)));
+    // return(0.0);
+
+    // TODO, Compilation failed
+    // Just use the GaussianGM function for now.
+    return GaussianGM(x, support);
+  }
+  )
+
+  STRINGIFY(
+  float LanczosGM(const float x,const float support)
+  {
+    if (x < -3.0)
+      return(0.0);
+    if (x < 0.0)
+      return(Sinc(-x)*Sinc(-x/3.0));
+    if (x < 3.0)
+      return(Sinc(x)*Sinc(x/3.0));
+    return(0.0);
+  }
+  )
+
+  STRINGIFY(
+  float BlackmanBesselGM(const float x,const float support)
+  {
+    // return(BlackmanGM(x/support,support)*Bessel(x,support));
+
+    // TODO, Compilation failed
+    // Just use the GaussianGM function for now.
+    return GaussianGM(x, support);
+  }
+  )
+
+  STRINGIFY(
+  float BlackmanSincGM(const float x,const float support)
+  {
+    // return(BlackmanGM(x/support,support)*Sinc(x,support));
+
+    // TODO, Compilation failed
+    // Just use the GaussianGM function for now.
+    return GaussianGM(x, support);
+  }
+  )
+
+  STRINGIFY(
+  static inline float getResizeFilterWeightForGM(const int resizeFilterType
+           , const float x, const float support)
+  {
+    switch (resizeFilterType)
+    {
+    case UndefinedFilter:
+    case PointFilter:
+    case BoxFilter:
+      return BoxGM(x, support);
+    case TriangleFilter:
+      return TriangleGM(x, support);
+    case HermiteFilter:
+      return HermiteGM(x, support);
+    case HanningFilter:
+      return HanningGM(x, support);
+    case HammingFilter:
+      return HammingGM(x, support);
+    case BlackmanFilter:
+      return BlackmanGM(x, support);
+    case GaussianFilter:
+      return GaussianGM(x, support);
+    case QuadraticFilter:
+      return QuadraticGM(x, support);
+    case CubicFilter:
+      return CubicGM(x, support);
+    case CatromFilter:
+      return CatromGM(x, support);
+    case MitchellFilter:
+      return MitchellGM(x, support);
+    case LanczosFilter:
+      return LanczosGM(x, support);
+    case BesselFilter:
+      return BlackmanBesselGM(x, support);
+    case SincFilter:
+      return BlackmanSincGM(x, support);
+    default:
+      return 0.0f;
+    }
+  }
   )
 
   ;
@@ -2456,8 +2699,8 @@ OPENCL_ENDIF()
     void ResizeHorizontalFilter(const __global CLQuantum *inputImage, const unsigned int matte_or_cmyk,
       const unsigned int inputColumns, const unsigned int inputRows, __global CLQuantum *filteredImage,
       const unsigned int filteredColumns, const unsigned int filteredRows, const float xFactor,
-      const int resizeFilterType, const int resizeWindowType, const __global float *resizeFilterCubicCoefficients,
-      const float resizeFilterScale, const float resizeFilterSupport, const float resizeFilterWindowSupport,
+      const int resizeFilterType, const __global float *resizeFilterCubicCoefficients,
+      const float resizeFilterScale, const float resizeFilterSupport,
       const float resizeFilterBlur, __local CLQuantum *inputImageCache, const int numCachedPixels,
       const unsigned int pixelPerWorkgroup, const unsigned int pixelChunkSize,
       __local float4 *outputPixelCache, __local float *densityCache, __local float *gammaCache)
@@ -2468,9 +2711,8 @@ OPENCL_ENDIF()
     const unsigned int actualNumPixelToCompute = stopX - startX;
 
     // calculate the range of input image pixels to cache
-    float scale = MagickMax(1.0f/xFactor+MagickEpsilon ,1.0f);
-    const float support = MagickMax(scale*resizeFilterSupport,0.5f);
-    scale = PerceptibleReciprocal(scale);
+    float scale = resizeFilterScale;
+    const float support = resizeFilterSupport;
 
     const int cacheRangeStartX = MagickMax((int)((startX+0.5f)/xFactor+MagickEpsilon-support+0.5f),(int)(0));
     const int cacheRangeEndX = MagickMin((int)(cacheRangeStartX + numCachedPixels), (int)inputColumns);
@@ -2522,11 +2764,14 @@ OPENCL_ENDIF()
           unsigned int cacheIndex = start+startStep-cacheRangeStartX;
           for (unsigned int i = startStep; i < stopStep; i++, cacheIndex++)
           {
-            float weight = getResizeFilterWeight(resizeFilterCubicCoefficients,
+            /* float weight = getResizeFilterWeight(resizeFilterCubicCoefficients,
               (ResizeWeightingFunctionType) resizeFilterType,
               (ResizeWeightingFunctionType) resizeWindowType,
               resizeFilterScale, resizeFilterWindowSupport,
-              resizeFilterBlur, scale*(start + i - bisect + 0.5));
+              resizeFilterBlur, scale*(start + i - bisect + 0.5)); */
+
+            float weight = getResizeFilterWeightForGM(resizeFilterType,
+              scale*(start + i - bisect + 0.5), support);
 
             float4 cp = (float4)0.0f;
 
@@ -2616,8 +2861,8 @@ OPENCL_ENDIF()
     void ResizeVerticalFilter(const __global CLQuantum *inputImage, const unsigned int matte_or_cmyk,
       const unsigned int inputColumns, const unsigned int inputRows, __global CLQuantum *filteredImage,
       const unsigned int filteredColumns, const unsigned int filteredRows, const float yFactor,
-      const int resizeFilterType, const int resizeWindowType, const __global float *resizeFilterCubicCoefficients,
-      const float resizeFilterScale, const float resizeFilterSupport, const float resizeFilterWindowSupport,
+      const int resizeFilterType, const __global float *resizeFilterCubicCoefficients,
+      const float resizeFilterScale, const float resizeFilterSupport,
       const float resizeFilterBlur, __local CLQuantum *inputImageCache, const int numCachedPixels,
       const unsigned int pixelPerWorkgroup, const unsigned int pixelChunkSize,
       __local float4 *outputPixelCache, __local float *densityCache, __local float *gammaCache)
@@ -2628,9 +2873,8 @@ OPENCL_ENDIF()
     const unsigned int actualNumPixelToCompute = stopY - startY;
 
     // calculate the range of input image pixels to cache
-    float scale = MagickMax(1.0f/yFactor+MagickEpsilon ,1.0f);
-    const float support = MagickMax(scale*resizeFilterSupport,0.5f);
-    scale = PerceptibleReciprocal(scale);
+    float scale = resizeFilterScale;
+    const float support = resizeFilterSupport;
 
     const int cacheRangeStartY = MagickMax((int)((startY+0.5f)/yFactor+MagickEpsilon-support+0.5f),(int)(0));
     const int cacheRangeEndY = MagickMin((int)(cacheRangeStartY + numCachedPixels), (int)inputRows);
@@ -2686,11 +2930,14 @@ OPENCL_ENDIF()
           unsigned int cacheIndex = start+startStep-cacheRangeStartY;
           for (unsigned int i = startStep; i < stopStep; i++, cacheIndex++)
           {
-            float weight = getResizeFilterWeight(resizeFilterCubicCoefficients,
+            /* float weight = getResizeFilterWeight(resizeFilterCubicCoefficients,
               (ResizeWeightingFunctionType) resizeFilterType,
               (ResizeWeightingFunctionType) resizeWindowType,
               resizeFilterScale, resizeFilterWindowSupport,
-              resizeFilterBlur, scale*(start + i - bisect + 0.5));
+              resizeFilterBlur, scale*(start + i - bisect + 0.5)); */
+
+            float weight = getResizeFilterWeightForGM(resizeFilterType,
+              scale*(start + i - bisect + 0.5), support);
 
             float4 cp = (float4)0.0f;
 

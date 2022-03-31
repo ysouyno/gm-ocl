@@ -243,7 +243,7 @@ static MagickBooleanType resizeHorizontalFilter(MagickCLDevice device,
   cl_command_queue queue,const Image *image,Image *filteredImage,
   cl_mem imageBuffer,cl_uint matte_or_cmyk,cl_uint columns,cl_uint rows,
   cl_mem resizedImageBuffer,cl_uint resizedColumns,cl_uint resizedRows,
-  const FilterInfo *resizeFilter,const double blur,
+  cl_uint filter_type,const FilterInfo *resizeFilter,const double blur,
   cl_mem resizeFilterCubicCoefficients,
   const float xFactor,ExceptionInfo *exception)
 {
@@ -259,15 +259,13 @@ static MagickBooleanType resizeHorizontalFilter(MagickCLDevice device,
   float
     resizeFilterScale,
     resizeFilterSupport,
-    resizeFilterWindowSupport,
     resizeFilterBlur,
     scale,
     support;
 
   int
     numCachedPixels,
-    resizeFilterType,
-    resizeWindowType;
+    resizeFilterType;
 
   MagickBooleanType
     outputReady;
@@ -292,20 +290,18 @@ static MagickBooleanType resizeHorizontalFilter(MagickCLDevice device,
   /*
   Apply filter to resize vertically from image to resize image.
   */
-  scale=MAGICK_MAX(1.0/xFactor+MagickEpsilon,1.0);
-  // TODO
-  // support=scale*GetResizeFilterSupport(resizeFilter);
-  support = scale * resizeFilter->support;
+  scale=blur*MAGICK_MAX(1.0/xFactor,1.0);
+  support=scale*resizeFilter->support;
   if (support < 0.5)
   {
     /*
     Support too small even for nearest neighbour: Reduce to point
     sampling.
     */
-    support=(float) 0.5;
+    support=0.5+MagickEpsilon;
     scale=1.0;
   }
-  scale=PerceptibleReciprocal(scale);
+  scale=1.0/scale;
 
   if (resizedColumns < workgroupSize)
   {
@@ -353,11 +349,9 @@ RestoreMSCWarning
     }
   }
 
-  // TODO
   // resizeFilterType=(int)GetResizeFilterWeightingType(resizeFilter);
   // resizeWindowType=(int)GetResizeFilterWindowWeightingType(resizeFilter);
-  resizeFilterType = 1;
-  resizeWindowType = 1;
+  resizeFilterType=filter_type;
 
   horizontalKernel=AcquireOpenCLKernel(device,"ResizeHorizontalFilter");
   if (horizontalKernel == (cl_kernel) NULL)
@@ -367,15 +361,13 @@ RestoreMSCWarning
     goto cleanup;
   }
 
-  // TODO
   // resizeFilterScale=(float) GetResizeFilterScale(resizeFilter);
   // resizeFilterSupport=(float) GetResizeFilterSupport(resizeFilter);
   // resizeFilterWindowSupport=(float) GetResizeFilterWindowSupport(resizeFilter);
   // resizeFilterBlur=(float) GetResizeFilterBlur(resizeFilter);
-  resizeFilterScale = 1.0;
-  resizeFilterSupport = 0.5;
-  resizeFilterWindowSupport = 1.0;
-  resizeFilterBlur = blur;
+  resizeFilterScale=scale;
+  resizeFilterSupport=support;
+  resizeFilterBlur=blur;
 
   i=0;
   status =SetOpenCLKernelArg(horizontalKernel,i++,sizeof(cl_mem),(void*)&imageBuffer);
@@ -387,11 +379,11 @@ RestoreMSCWarning
   status|=SetOpenCLKernelArg(horizontalKernel,i++,sizeof(cl_uint),(void*)&resizedRows);
   status|=SetOpenCLKernelArg(horizontalKernel,i++,sizeof(float),(void*)&xFactor);
   status|=SetOpenCLKernelArg(horizontalKernel,i++,sizeof(int),(void*)&resizeFilterType);
-  status|=SetOpenCLKernelArg(horizontalKernel,i++,sizeof(int),(void*)&resizeWindowType);
+  // status|=SetOpenCLKernelArg(horizontalKernel,i++,sizeof(int),(void*)&resizeWindowType);
   status|=SetOpenCLKernelArg(horizontalKernel,i++,sizeof(cl_mem),(void*)&resizeFilterCubicCoefficients);
   status|=SetOpenCLKernelArg(horizontalKernel,i++,sizeof(float),(void*)&resizeFilterScale);
   status|=SetOpenCLKernelArg(horizontalKernel,i++,sizeof(float),(void*)&resizeFilterSupport);
-  status|=SetOpenCLKernelArg(horizontalKernel,i++,sizeof(float),(void*)&resizeFilterWindowSupport);
+  // status|=SetOpenCLKernelArg(horizontalKernel,i++,sizeof(float),(void*)&resizeFilterWindowSupport);
   status|=SetOpenCLKernelArg(horizontalKernel,i++,sizeof(float),(void*)&resizeFilterBlur);
   status|=SetOpenCLKernelArg(horizontalKernel,i++,imageCacheLocalMemorySize,NULL);
   status|=SetOpenCLKernelArg(horizontalKernel,i++,sizeof(int),&numCachedPixels);
@@ -429,7 +421,7 @@ static MagickBooleanType resizeVerticalFilter(MagickCLDevice device,
   cl_command_queue queue,const Image *image,Image * filteredImage,
   cl_mem imageBuffer,cl_uint matte_or_cmyk,cl_uint columns,cl_uint rows,
   cl_mem resizedImageBuffer,cl_uint resizedColumns,cl_uint resizedRows,
-  const FilterInfo *resizeFilter,const double blur,
+  cl_uint filter_type,const FilterInfo *resizeFilter,const double blur,
   cl_mem resizeFilterCubicCoefficients,
   const float yFactor,ExceptionInfo *exception)
 {
@@ -445,15 +437,13 @@ static MagickBooleanType resizeVerticalFilter(MagickCLDevice device,
   float
     resizeFilterScale,
     resizeFilterSupport,
-    resizeFilterWindowSupport,
     resizeFilterBlur,
     scale,
     support;
 
   int
     numCachedPixels,
-    resizeFilterType,
-    resizeWindowType;
+    resizeFilterType;
 
   MagickBooleanType
     outputReady;
@@ -478,20 +468,18 @@ static MagickBooleanType resizeVerticalFilter(MagickCLDevice device,
   /*
   Apply filter to resize vertically from image to resize image.
   */
-  scale=MAGICK_MAX(1.0/yFactor+MagickEpsilon,1.0);
-  // TODO
-  // support=scale*GetResizeFilterSupport(resizeFilter);
-  support = scale * resizeFilter->support;
+  scale=blur*MAGICK_MAX(1.0/yFactor,1.0);
+  support=scale*resizeFilter->support;
   if (support < 0.5)
   {
     /*
     Support too small even for nearest neighbour: Reduce to point
     sampling.
     */
-    support=(float) 0.5;
+    support=0.5+MagickEpsilon;
     scale=1.0;
   }
-  scale=PerceptibleReciprocal(scale);
+  scale=1.0/scale;
 
   if (resizedRows < workgroupSize)
   {
@@ -539,11 +527,9 @@ RestoreMSCWarning
     }
   }
 
-  // TODO
   // resizeFilterType=(int)GetResizeFilterWeightingType(resizeFilter);
   // resizeWindowType=(int)GetResizeFilterWindowWeightingType(resizeFilter);
-  resizeFilterType = 1;
-  resizeWindowType = 1;
+  resizeFilterType=filter_type;
 
   verticalKernel=AcquireOpenCLKernel(device,"ResizeVerticalFilter");
   if (verticalKernel == (cl_kernel) NULL)
@@ -553,15 +539,13 @@ RestoreMSCWarning
     goto cleanup;
   }
 
-  // TODO
   // resizeFilterScale=(float) GetResizeFilterScale(resizeFilter);
   // resizeFilterSupport=(float) GetResizeFilterSupport(resizeFilter);
   // resizeFilterBlur=(float) GetResizeFilterBlur(resizeFilter);
   // resizeFilterWindowSupport=(float) GetResizeFilterWindowSupport(resizeFilter);
-  resizeFilterScale = 1.0;
-  resizeFilterSupport = 0.5;
-  resizeFilterWindowSupport = 1.0;
-  resizeFilterBlur = blur;
+  resizeFilterScale=scale;
+  resizeFilterSupport=support;
+  resizeFilterBlur=blur;
 
   i=0;
   status =SetOpenCLKernelArg(verticalKernel,i++,sizeof(cl_mem),(void*)&imageBuffer);
@@ -573,11 +557,11 @@ RestoreMSCWarning
   status|=SetOpenCLKernelArg(verticalKernel,i++,sizeof(cl_uint),(void*)&resizedRows);
   status|=SetOpenCLKernelArg(verticalKernel,i++,sizeof(float),(void*)&yFactor);
   status|=SetOpenCLKernelArg(verticalKernel,i++,sizeof(int),(void*)&resizeFilterType);
-  status|=SetOpenCLKernelArg(verticalKernel,i++,sizeof(int),(void*)&resizeWindowType);
+  // status|=SetOpenCLKernelArg(verticalKernel,i++,sizeof(int),(void*)&resizeWindowType);
   status|=SetOpenCLKernelArg(verticalKernel,i++,sizeof(cl_mem),(void*)&resizeFilterCubicCoefficients);
   status|=SetOpenCLKernelArg(verticalKernel,i++,sizeof(float),(void*)&resizeFilterScale);
   status|=SetOpenCLKernelArg(verticalKernel,i++,sizeof(float),(void*)&resizeFilterSupport);
-  status|=SetOpenCLKernelArg(verticalKernel,i++,sizeof(float),(void*)&resizeFilterWindowSupport);
+  // status|=SetOpenCLKernelArg(verticalKernel,i++,sizeof(float),(void*)&resizeFilterWindowSupport);
   status|=SetOpenCLKernelArg(verticalKernel,i++,sizeof(float),(void*)&resizeFilterBlur);
   status|=SetOpenCLKernelArg(verticalKernel,i++,imageCacheLocalMemorySize, NULL);
   status|=SetOpenCLKernelArg(verticalKernel,i++,sizeof(int), &numCachedPixels);
@@ -611,7 +595,7 @@ cleanup:
 }
 
 static Image *ComputeResizeImage(const Image* image,MagickCLEnv clEnv,
-  const size_t resizedColumns,const size_t resizedRows,
+  const size_t resizedColumns,const size_t resizedRows,const size_t filter_type,
   const FilterInfo *filter_info,const double blur,ExceptionInfo *exception)
 {
   cl_command_queue
@@ -703,16 +687,16 @@ static Image *ComputeResizeImage(const Image* image,MagickCLEnv clEnv,
     outputReady=resizeHorizontalFilter(device,queue,image,filteredImage,
       imageBuffer,matte_or_cmyk,(cl_uint) image->columns,
       (cl_uint) image->rows,tempImageBuffer,(cl_uint) resizedColumns,
-      (cl_uint) image->rows,filter_info,blur,cubicCoefficientsBuffer,xFactor,
-      exception);
+      (cl_uint) image->rows,filter_type,filter_info,blur,
+      cubicCoefficientsBuffer,xFactor,exception);
     if (outputReady == MagickFalse)
       goto cleanup;
 
     outputReady=resizeVerticalFilter(device,queue,image,filteredImage,
       tempImageBuffer,matte_or_cmyk,(cl_uint) resizedColumns,
       (cl_uint) image->rows,filteredImageBuffer,(cl_uint) resizedColumns,
-      (cl_uint) resizedRows,filter_info,blur,cubicCoefficientsBuffer,yFactor,
-      exception);
+      (cl_uint) resizedRows,filter_type,filter_info,blur,
+      cubicCoefficientsBuffer,yFactor,exception);
     if (outputReady == MagickFalse)
       goto cleanup;
   }
@@ -731,16 +715,16 @@ static Image *ComputeResizeImage(const Image* image,MagickCLEnv clEnv,
     outputReady=resizeVerticalFilter(device,queue,image,filteredImage,
       imageBuffer,matte_or_cmyk,(cl_uint) image->columns,
       (cl_int) image->rows,tempImageBuffer,(cl_uint) image->columns,
-      (cl_uint) resizedRows,filter_info,blur,cubicCoefficientsBuffer,yFactor,
-      exception);
+      (cl_uint) resizedRows,filter_type,filter_info,blur,
+      cubicCoefficientsBuffer,yFactor,exception);
     if (outputReady == MagickFalse)
       goto cleanup;
 
     outputReady=resizeHorizontalFilter(device,queue,image,filteredImage,
       tempImageBuffer,matte_or_cmyk,(cl_uint) image->columns,
       (cl_uint) resizedRows,filteredImageBuffer,(cl_uint) resizedColumns,
-      (cl_uint) resizedRows,filter_info,blur,cubicCoefficientsBuffer,xFactor,
-      exception);
+      (cl_uint) resizedRows,filter_type,filter_info,blur,
+      cubicCoefficientsBuffer,xFactor,exception);
     if (outputReady == MagickFalse)
       goto cleanup;
   }
@@ -769,7 +753,7 @@ cleanup:
 }
 
 MagickPrivate Image *AccelerateResizeImage(const Image *image,
-  const size_t resizedColumns,const size_t resizedRows,
+  const size_t resizedColumns,const size_t resizedRows,const size_t filter_type,
   const FilterInfo *filter_info,const double blur,ExceptionInfo *exception)
 {
   Image
@@ -795,7 +779,7 @@ MagickPrivate Image *AccelerateResizeImage(const Image *image,
     return((Image *) NULL);
 
   filteredImage=ComputeResizeImage(image,clEnv,resizedColumns,resizedRows,
-    filter_info,blur,exception);
+    filter_type,filter_info,blur,exception);
   return(filteredImage);
 }
 #endif /* HAVE_OPENCL */

@@ -65,7 +65,7 @@ extern MagickPrivate MagickBooleanType
     const ColorspaceType, ExceptionInfo*); */
 
 extern Image
-  *AccelerateResizeImage(const Image *,const size_t,const size_t,
+  *AccelerateResizeImage(const Image *,const size_t,const size_t,const size_t,
     const FilterInfo *,const double,ExceptionInfo *);
 
 #endif /* HAVE_OPENCL */
