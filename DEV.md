@@ -35,6 +35,8 @@
         - [一个低级错误引发的`core dumped`](#一个低级错误引发的core-dumped)
         - [关于`error: use of type 'double' requires cl_khr_fp64 support`错误](#关于error-use-of-type-double-requires-cl_khr_fp64-support错误)
         - [关于`IM`中`resizeHorizontalFilter()`中的`scale`变量](#关于im中resizehorizontalfilter中的scale变量)
+    - [<2022-03-31 Thu>](#2022-03-31-thu)
+        - [在核函数中使用`GM`的计算代码](#在核函数中使用gm的计算代码)
 
 <!-- markdown-toc end -->
 
@@ -1245,3 +1247,13 @@ error: use of type 'double' requires cl_khr_fp64 support
 我在`GM`中应该怎么处理呢？考虑到`GPU`并行运行的影响，`scale`的值不依赖各个`work-group`或`work-item`。因此我认为将`scale`赋值给`resizeFilterScale`传进`kernel`函数不会影响计算结果，那这样的话`kernel`函数中的`scale`计算就显得有点多余了。
 
 备注：代码写着写着，发现个严重问题，`OpenCL`不支持函数指针，那怎么把过滤函数传进`kernel`函数呢？
+
+## <2022-03-31 Thu>
+
+### 在核函数中使用`GM`的计算代码
+
+因为`OpenCL`不支持传递函数指针，所以增加了过滤函数的类型参数进行传参，涉及了一系列函数调用的参数修改。
+
+在`resizeHorizontalFilter()`内部计算好`scale`的值，采用`GM`的计算方法，虽然它和`IM`的计算方法差不多。将`kernel`函数中的`scale`计算代码移除，同时核函数`ResizeHorizontalFilter()`的`support`也通过参数传入，它和`scale`一样，计算放在了`resizeHorizontalFilter()`中，另发现核函数`ResizeHorizontalFilter()`中的`resizeFilterBlur`变量已经不再使用。
+
+所有修改见此次`commit`的上个`commit`，修改代码比较多，但愿没引出新的问题。
