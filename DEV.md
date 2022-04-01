@@ -37,6 +37,8 @@
         - [关于`IM`中`resizeHorizontalFilter()`中的`scale`变量](#关于im中resizehorizontalfilter中的scale变量)
     - [<2022-03-31 Thu>](#2022-03-31-thu)
         - [在核函数中使用`GM`的计算代码](#在核函数中使用gm的计算代码)
+    - [<2022-04-01 Fri>](#2022-04-01-fri)
+        - [关于`AcquireCriticalMemory()`函数的异常处理](#关于acquirecriticalmemory函数的异常处理)
 
 <!-- markdown-toc end -->
 
@@ -1257,3 +1259,26 @@ error: use of type 'double' requires cl_khr_fp64 support
 在`resizeHorizontalFilter()`内部计算好`scale`的值，采用`GM`的计算方法，虽然它和`IM`的计算方法差不多。将`kernel`函数中的`scale`计算代码移除，同时核函数`ResizeHorizontalFilter()`的`support`也通过参数传入，它和`scale`一样，计算放在了`resizeHorizontalFilter()`中，另发现核函数`ResizeHorizontalFilter()`中的`resizeFilterBlur`变量已经不再使用。
 
 所有修改见此次`commit`的上个`commit`，修改代码比较多，但愿没引出新的问题。
+
+## <2022-04-01 Fri>
+
+### 关于`AcquireCriticalMemory()`函数的异常处理
+
+不太好给`AcquireCriticalMemory()`添加异常处理，`GM`中定义好的内存分配失败的异常就那么几个，查找所有调用`AcquireCriticalMemory()`的地方，发现有给`StringInfo`，有给`ImageInfo`，还有给`MagickCLCacheInfo`等等分配内存的，在每个调用`AcquireCriticalMemory()`的地方抛出异常是可行的，可以使用`GM`中已定义好的异常类型，比如`StringInfo`可以用`UnableToAllocateString`来代替，`ImageInfo`可以用`UnableToAllocateImage`，`MagickCLCacheInfo`可能需要增加一个异常类型；或者在`AcquireCriticalMemory()`函数内部处理异常，这正是`IM`的处理方式，但是这样的话在`AcquireCriticalMemory()`内部不能明确表达出是哪种类型操作产生的异常。当然可以通过增加参数来解决，但是处理起来同样很麻烦。
+
+目前我修改的函数是这样的，固定了它的类型为`UnableToAllocateModuleInfo`，没有把此修改放到源代码里，目前仅存在笔记里：
+
+``` c++
+MagickExport void *AcquireCriticalMemory(const size_t len)
+{
+  void
+    *memory;
+
+  // Fail if memory request cannot be fulfilled.
+  memory=MagickMalloc(len);
+  if (memory == (void *) NULL)
+    MagickFatalError3(ResourceLimitFatalError,MemoryAllocationFailed,
+      UnableToAllocateModuleInfo);
+  return(memory);
+}
+```
