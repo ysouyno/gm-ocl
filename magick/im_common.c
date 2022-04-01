@@ -73,7 +73,7 @@
 
 #if defined(HAVE_OPENCL)
 
-// TODO
+// TODO(ocl)
 void *RelinquishMagickMemory(void *memory)
 {
   if (memory == (void *) NULL)
@@ -701,7 +701,7 @@ MagickExport MagickBooleanType GetPathAttributes(const char *path,
   return(status);
 }
 
-// TODO
+// TODO(ocl)
 MagickExport void *AcquireCriticalMemory(const size_t len)
 {
   return malloc(len);
@@ -922,7 +922,7 @@ MagickExport void *AcquireQuantumMemory(const size_t count,const size_t quantum)
     size;
 
   if ((HeapOverflowSanityCheckGetSize(count,quantum,&size) != MagickFalse) ||
-      (size > /*GetMaxMemoryRequest()*/LONG_MAX)) // TODO
+      (size > /*GetMaxMemoryRequest()*/LONG_MAX)) // TODO(ocl)
     {
       errno=ENOMEM;
       return(NULL);
@@ -1054,7 +1054,7 @@ MagickExport void *ResizeQuantumMemory(void *memory,const size_t count,
     size;
 
   if ((HeapOverflowSanityCheckGetSize(count,quantum,&size) != MagickFalse) ||
-      (size > /*GetMaxMemoryRequest()*/LONG_MAX)) // TODO
+      (size > /*GetMaxMemoryRequest()*/LONG_MAX)) // TODO(ocl)
     {
       errno=ENOMEM;
       memory=RelinquishMagickMemory(memory);

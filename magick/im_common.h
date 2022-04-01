@@ -111,10 +111,10 @@ typedef MagickBool MagickBooleanType;
 #define MagickMax(x,y) (((x) > (y)) ? (x) : (y))
 #define MagickMin(x,y) (((x) < (y)) ? (x) : (y))
 
-// TODO
+// TODO(ocl)
 #define MAGICKCORE_QUANTUM_DEPTH 8
 
-// TODO
+// TODO(ocl)
 #if (MAGICKCORE_QUANTUM_DEPTH == 8)
 // #define MaxColormapSize  256UL
 // #define MaxMap  255UL
@@ -199,11 +199,11 @@ typedef unsigned __int64 MagickSizeType;
 /*
   ImageMagick compatibility definitions
 */
-#define MagickSizeType magick_int64_t // TODO
+#define MagickSizeType magick_int64_t // TODO(ocl)
 
 #define MagickPrivate
 
-// TODO
+// TODO(ocl)
 #if defined(MAGICKCORE_THREAD_SUPPORT)
 typedef pthread_t MagickThreadType;
 #elif defined(MAGICKCORE_WINDOWS_SUPPORT)

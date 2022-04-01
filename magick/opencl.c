@@ -1106,7 +1106,7 @@ static double RunOpenCLBenchmark(MagickBooleanType is_cpu)
     bluredImage=BlurImage(inputImage,10.0f,3.5f,&exception);
     unsharpedImage=UnsharpMaskImage(bluredImage,2.0f,2.0f,50.0f,10.0f,
       &exception);
-    // TODO, 1.0f
+    // TODO(ocl), 1.0f
     resizedImage=ResizeImage(unsharpedImage,640,480,LanczosFilter,1.0f,
       &exception);
 
@@ -2987,9 +2987,9 @@ static void CL_API_CALL DestroyMagickCLCacheInfoAndPixels(
       }
   }
   pixels=info->pixels;
-  // RelinquishMagickResource(MemoryResource,info->length); // TODO
+  // RelinquishMagickResource(MemoryResource,info->length); // TODO(ocl)
   DestroyMagickCLCacheInfo(info);
-  // (void) RelinquishAlignedMemory(pixels); // TODO
+  // (void) RelinquishAlignedMemory(pixels); // TODO(ocl)
 }
 
 MagickPrivate MagickCLCacheInfo RelinquishMagickCLCacheInfo(
