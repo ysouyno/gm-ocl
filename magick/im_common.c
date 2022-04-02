@@ -701,10 +701,17 @@ MagickExport MagickBooleanType GetPathAttributes(const char *path,
   return(status);
 }
 
-// TODO(ocl)
 MagickExport void *AcquireCriticalMemory(const size_t len)
 {
-  return malloc(len);
+  void
+    *memory;
+
+  // Fail if memory request cannot be fulfilled.
+  memory=MagickMalloc(len);
+  if (memory == (void *) NULL)
+    MagickFatalError(ResourceLimitFatalError,MemoryAllocationFailed,
+      "ocl: AcquireCriticalMemory");
+  return(memory);
 }
 
 /*

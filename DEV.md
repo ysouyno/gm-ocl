@@ -38,7 +38,9 @@
     - [<2022-03-31 Thu>](#2022-03-31-thu)
         - [在核函数中使用`GM`的计算代码](#在核函数中使用gm的计算代码)
     - [<2022-04-01 Fri>](#2022-04-01-fri)
-        - [关于`AcquireCriticalMemory()`函数的异常处理](#关于acquirecriticalmemory函数的异常处理)
+        - [关于`AcquireCriticalMemory()`函数的异常处理（一）](#关于acquirecriticalmemory函数的异常处理一)
+    - [<2022-04-02 Sat>](#2022-04-02-sat)
+        - [关于`AcquireCriticalMemory()`函数的异常处理（二）](#关于acquirecriticalmemory函数的异常处理二)
 
 <!-- markdown-toc end -->
 
@@ -1262,7 +1264,7 @@ error: use of type 'double' requires cl_khr_fp64 support
 
 ## <2022-04-01 Fri>
 
-### 关于`AcquireCriticalMemory()`函数的异常处理
+### 关于`AcquireCriticalMemory()`函数的异常处理（一）
 
 不太好给`AcquireCriticalMemory()`添加异常处理，`GM`中定义好的内存分配失败的异常就那么几个，查找所有调用`AcquireCriticalMemory()`的地方，发现有给`StringInfo`，有给`ImageInfo`，还有给`MagickCLCacheInfo`等等分配内存的，在每个调用`AcquireCriticalMemory()`的地方抛出异常是可行的，可以使用`GM`中已定义好的异常类型，比如`StringInfo`可以用`UnableToAllocateString`来代替，`ImageInfo`可以用`UnableToAllocateImage`，`MagickCLCacheInfo`可能需要增加一个异常类型；或者在`AcquireCriticalMemory()`函数内部处理异常，这正是`IM`的处理方式，但是这样的话在`AcquireCriticalMemory()`内部不能明确表达出是哪种类型操作产生的异常。当然可以通过增加参数来解决，但是处理起来同样很麻烦。
 
@@ -1282,3 +1284,57 @@ MagickExport void *AcquireCriticalMemory(const size_t len)
   return(memory);
 }
 ```
+
+## <2022-04-02 Sat>
+
+### 关于`AcquireCriticalMemory()`函数的异常处理（二）
+
+了解了一下`GM`的异常处理，可以这么来用：
+
+``` c++
+MagickExport void *AcquireCriticalMemory(const size_t len)
+{
+  void
+    *memory;
+
+  ExceptionInfo
+    exception;
+
+  GetExceptionInfo(&exception);
+
+  // Fail if memory request cannot be fulfilled.
+  memory=MagickMalloc(len);
+  if (memory == (void *) NULL)
+    ThrowException(&exception,ResourceLimitError,MemoryAllocationFailed,
+      "AcquireCriticalMemory");
+  return(memory);
+}
+```
+
+但是发现如果`memory`为空时`ThrowException()`并不能结束掉程序，它最终调用的是`ThrowLoggedException()`函数将其记录下来。也可以这么使用：
+
+``` c++
+MagickExport void *AcquireCriticalMemory(const size_t len)
+{
+  void
+    *memory;
+
+  // Fail if memory request cannot be fulfilled.
+  memory=MagickMalloc(len);
+  if (memory == (void *) NULL)
+    MagickFatalError(ResourceLimitFatalError,MemoryAllocationFailed,
+      "ocl: AcquireCriticalMemory");
+  return(memory);
+}
+```
+
+这是我当前使用的方案，当指针为`0`时它结束掉程序，打印出如下的信息：
+
+``` shellsession
+[ysouyno@arch gm-ocl]$ gm display ~/temp/bg1a.jpg
+gm display: Memory allocation failed (ocl: AcquireCriticalMemory) [Resource temporarily unavailable].
+```
+
+如果能把输出的信息弄得再详细点儿就更好了。
+
+值得注意的是在`GM`中有`MagickFatalError()`，`MagickFatalError2()`和`MagickFatalError3()`三个功能相似的函数，`MagickFatalError()`可以使用字符串做为参数，`MagickFatalError2()`也可以使用字符串做为参数，但是它与`MagickFatalError()`的具体应用场景还不太了解，`MagickFatalError3()`只能使用预定义的异常类型。
