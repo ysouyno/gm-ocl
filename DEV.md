@@ -41,6 +41,7 @@
         - [关于`AcquireCriticalMemory()`函数的异常处理（一）](#关于acquirecriticalmemory函数的异常处理一)
     - [<2022-04-02 Sat>](#2022-04-02-sat)
         - [关于`AcquireCriticalMemory()`函数的异常处理（二）](#关于acquirecriticalmemory函数的异常处理二)
+        - [关于`LiberateMagickResource()`的闪退问题](#关于liberatemagickresource的闪退问题)
 
 <!-- markdown-toc end -->
 
@@ -1338,3 +1339,49 @@ gm display: Memory allocation failed (ocl: AcquireCriticalMemory) [Resource temp
 如果能把输出的信息弄得再详细点儿就更好了。
 
 值得注意的是在`GM`中有`MagickFatalError()`，`MagickFatalError2()`和`MagickFatalError3()`三个功能相似的函数，`MagickFatalError()`可以使用字符串做为参数，`MagickFatalError2()`也可以使用字符串做为参数，但是它与`MagickFatalError()`的具体应用场景还不太了解，`MagickFatalError3()`只能使用预定义的异常类型。
+
+### 关于`LiberateMagickResource()`的闪退问题
+
+我正在处理所有标注了`TODO(ocl)`的代码，在`DestroyMagickCLCacheInfoAndPixels()`函数里的代码：
+
+``` c++
+// RelinquishMagickResource(MemoryResource,info->length); // TODO(ocl)
+DestroyMagickCLCacheInfo(info);
+// (void) RelinquishAlignedMemory(pixels); // TODO(ocl)
+```
+
+我这样处理之后：
+
+``` c++
+// RelinquishMagickResource(MemoryResource,info->length);
+LiberateMagickResource(MemoryResource,info->length);
+DestroyMagickCLCacheInfo(info);
+// (void) RelinquishAlignedMemory(pixels);
+MagickFreeAlignedMemory(pixels);
+```
+
+程序闪退，打印的信息如下：
+
+``` shellsession
+$ gm display ~/temp/1.png
+gm display: abort due to signal 11 (SIGSEGV) "Segmentation Fault"...
+Aborted (core dumped)
+```
+
+确认起因是因为使用了`LiberateMagickResource(MemoryResource,info->length);`这行代码。经过调试发现在`GetAuthenticOpenCLBuffer()`函数返回`NULL`后程序闪退。具体代码是：
+
+``` c++
+if ((cache_info->type != MemoryCache)/*  || (cache_info->mapped != MagickFalse) */)
+  return((cl_mem) NULL);
+```
+
+我这样修改好像不闪退了：
+
+``` c++
+if ((cache_info->type != MemoryCache) || (cache_info->type != MapCache))
+  return((cl_mem) NULL);
+```
+
+目前尚未理解`LiberateMagickResource(MemoryResource,info->length);`的用意，及像上面这样修改会不会引发什么新的问题。
+
+注：必须清除`.cache/ImageMagick`里的所有文件才能出现闪退问题，即在跑`opencl`的`benchmark`时会出现。
