@@ -111,10 +111,10 @@ typedef MagickBool MagickBooleanType;
 #define MagickMax(x,y) (((x) > (y)) ? (x) : (y))
 #define MagickMin(x,y) (((x) < (y)) ? (x) : (y))
 
-// TODO(ocl)
-#define MAGICKCORE_QUANTUM_DEPTH 8
+// MAGICKCORE_QUANTUM_DEPTH | IM
+// QuantumDepth             | GM
+#define MAGICKCORE_QUANTUM_DEPTH QuantumDepth
 
-// TODO(ocl)
 #if (MAGICKCORE_QUANTUM_DEPTH == 8)
 // #define MaxColormapSize  256UL
 // #define MaxMap  255UL
@@ -172,6 +172,8 @@ typedef MagickDoubleType Quantum;
 #define MagickStringifyArg(contents)  #contents
 #define QuantumScale  ((double) 1.0/(double) QuantumRange)
 
+// AcquireMagickMemory | IM
+// MagickMalloc        | GM
 // Copy form GM magick_compat.c
 #define AcquireMagickMemory(memory) malloc(memory)
 
@@ -196,17 +198,11 @@ typedef unsigned __int64 MagickSizeType;
 
 #define MAGICK_SSIZE_MAX (SSIZE_MAX)
 
-/*
-  ImageMagick compatibility definitions
-*/
-#define MagickSizeType magick_int64_t // TODO(ocl)
-
 #define MagickPrivate
 
-// TODO(ocl)
-#if defined(MAGICKCORE_THREAD_SUPPORT)
+#if defined(/*MAGICKCORE_THREAD_SUPPORT*/HAVE_PTHREAD)
 typedef pthread_t MagickThreadType;
-#elif defined(MAGICKCORE_WINDOWS_SUPPORT)
+#elif defined(/*MAGICKCORE_WINDOWS_SUPPORT*/MSWINDOWS)
 typedef DWORD MagickThreadType;
 #else
 typedef pid_t MagickThreadType;
@@ -333,9 +329,9 @@ extern MagickExport ImageInfo
 
 static inline MagickThreadType GetMagickThreadId(void)
 {
-#if defined(MAGICKCORE_THREAD_SUPPORT)
+#if defined(/*MAGICKCORE_THREAD_SUPPORT*/HAVE_PTHREAD)
   return(pthread_self());
-#elif defined(MAGICKCORE_WINDOWS_SUPPORT)
+#elif defined(/*MAGICKCORE_WINDOWS_SUPPORT*/MSWINDOWS)
   return(GetCurrentThreadId());
 #else
   return(getpid());

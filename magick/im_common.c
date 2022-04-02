@@ -73,7 +73,6 @@
 
 #if defined(HAVE_OPENCL)
 
-// TODO(ocl): Copy from GM's magick_compat.c
 void *RelinquishMagickMemory(void *memory)
 {
   if (memory == (void *) NULL)
