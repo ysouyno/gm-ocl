@@ -41,7 +41,9 @@
         - [关于`AcquireCriticalMemory()`函数的异常处理（一）](#关于acquirecriticalmemory函数的异常处理一)
     - [<2022-04-02 Sat>](#2022-04-02-sat)
         - [关于`AcquireCriticalMemory()`函数的异常处理（二）](#关于acquirecriticalmemory函数的异常处理二)
-        - [关于`LiberateMagickResource()`的闪退问题](#关于liberatemagickresource的闪退问题)
+        - [关于`LiberateMagickResource()`的闪退问题（一）](#关于liberatemagickresource的闪退问题一)
+    - [<2022-04-03 Sun>](#2022-04-03-sun)
+        - [关于`LiberateMagickResource()`的闪退问题（二）](#关于liberatemagickresource的闪退问题二)
 
 <!-- markdown-toc end -->
 
@@ -1340,7 +1342,7 @@ gm display: Memory allocation failed (ocl: AcquireCriticalMemory) [Resource temp
 
 值得注意的是在`GM`中有`MagickFatalError()`，`MagickFatalError2()`和`MagickFatalError3()`三个功能相似的函数，`MagickFatalError()`可以使用字符串做为参数，`MagickFatalError2()`也可以使用字符串做为参数，但是它与`MagickFatalError()`的具体应用场景还不太了解，`MagickFatalError3()`只能使用预定义的异常类型。
 
-### 关于`LiberateMagickResource()`的闪退问题
+### 关于`LiberateMagickResource()`的闪退问题（一）
 
 我正在处理所有标注了`TODO(ocl)`的代码，在`DestroyMagickCLCacheInfoAndPixels()`函数里的代码：
 
@@ -1385,3 +1387,58 @@ if ((cache_info->type != MemoryCache) || (cache_info->type != MapCache))
 目前尚未理解`LiberateMagickResource(MemoryResource,info->length);`的用意，及像上面这样修改会不会引发什么新的问题。
 
 注：必须清除`.cache/ImageMagick`里的所有文件才能出现闪退问题，即在跑`opencl`的`benchmark`时会出现。
+
+## <2022-04-03 Sun>
+
+### 关于`LiberateMagickResource()`的闪退问题（二）
+
+理解了一下`GM`的`AcquireMagickResource()`，`LiberateMagickResource()`函数，它们实际上起到监视的作用，没有分配和释放资源的功能，包括`InitializeMagickResources()`函数，初始化内存分配的上限，磁盘上限等等，可以通过比如`MAGICK_LIMIT_MEMORY`，`MAGICK_LIMIT_DISK`等环境变量来设置。
+
+调试发现当在`DestroyMagickCLCacheInfoAndPixels()`函数中使用`LiberateMagickResource()`后：
+
+``` c++
+// LiberateMagickResource()
+
+case SummationLimit:
+  {
+    /*
+      Limit depends on sum of previous allocations as well as
+      the currently requested size.
+    */
+    LockSemaphoreInfo(info->semaphore);
+    info->value-=size;
+    value=info->value;
+    UnlockSemaphoreInfo(info->semaphore);
+    break;
+  }
+```
+
+中的`info->value-=size;`可能会变成负值，这样的话，再次调用`AcquireMagickResource()`时可能返回失败，即：
+
+``` c++
+// AcquireMagickResource()
+
+case SummationLimit:
+  {
+    /*
+      Limit depends on sum of previous allocations as well as
+      the currently requested size.
+    */
+    LockSemaphoreInfo(info->semaphore);
+    value=info->value+size;
+    if ((info->maximum != ResourceInfinity) &&
+        (value > (magick_uint64_t) info->maximum))
+      {
+        value=info->value;
+        status=MagickFail;
+      }
+    else
+      {
+        info->value=value;
+      }
+    UnlockSemaphoreInfo(info->semaphore);
+    break;
+  }
+```
+
+这里的`if`分支，这样的话，需要找到为什么`LiberateMagickResource()`会将`info->value`的值搞成负数？
