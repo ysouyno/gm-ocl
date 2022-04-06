@@ -44,6 +44,8 @@
         - [关于`LiberateMagickResource()`的闪退问题（一）](#关于liberatemagickresource的闪退问题一)
     - [<2022-04-03 Sun>](#2022-04-03-sun)
         - [关于`LiberateMagickResource()`的闪退问题（二）](#关于liberatemagickresource的闪退问题二)
+    - [<2022-04-06 Wed>](#2022-04-06-wed)
+        - [关于`LiberateMagickResource()`的闪退问题（三）](#关于liberatemagickresource的闪退问题三)
 
 <!-- markdown-toc end -->
 
@@ -1442,3 +1444,27 @@ case SummationLimit:
 ```
 
 这里的`if`分支，这样的话，需要找到为什么`LiberateMagickResource()`会将`info->value`的值搞成负数？
+
+## <2022-04-06 Wed>
+
+### 关于`LiberateMagickResource()`的闪退问题（三）
+
+`info->value`的值之所以为负数，原因其实很简单，不是`AcquireMagickResource()`调少了，就是`LiberateMagickResource()`调多了。
+
+最终还是解决了这个问题，这是搬代码过程中自己给自己挖的一个坑，原`IM`中的代码是：
+
+``` c++
+// IM's RelinquishPixelCachePixels()
+
+#if defined(MAGICKCORE_OPENCL_SUPPORT)
+      if (cache_info->opencl != (MagickCLCacheInfo) NULL)
+        {
+          cache_info->opencl=RelinquishMagickCLCacheInfo(cache_info->opencl,
+            MagickTrue);
+          cache_info->pixels=(Quantum *) NULL;
+          break;
+        }
+#endif
+```
+
+这里的`break;`是关键。
