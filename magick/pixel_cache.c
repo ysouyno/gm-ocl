@@ -3647,9 +3647,10 @@ DestroyCacheInfo(Cache cache_info)
             MagickTrue);
           cache_info->pixels=(Quantum *) NULL;
         }
-#endif
+#else
       MagickFreeMemory(cache_info->pixels);
       LiberateMagickResource(MemoryResource,cache_info->length);
+#endif
     }
   else if (MapCache == cache_info->type)
     {
