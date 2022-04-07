@@ -46,6 +46,8 @@
         - [关于`LiberateMagickResource()`的闪退问题（二）](#关于liberatemagickresource的闪退问题二)
     - [<2022-04-06 Wed>](#2022-04-06-wed)
         - [关于`LiberateMagickResource()`的闪退问题（三）](#关于liberatemagickresource的闪退问题三)
+    - [<2022-04-07 Thu>](#2022-04-07-thu)
+        - [`gm benchmark`比较](#gm-benchmark比较)
 
 <!-- markdown-toc end -->
 
@@ -1468,3 +1470,73 @@ case SummationLimit:
 ```
 
 这里的`break;`是关键。
+
+## <2022-04-07 Thu>
+
+### `gm benchmark`比较
+
+仅运行一次缩放图片的话`gm-ocl`的速度远小于`gm`，而迭代`100`次的话，`gm-ocl`速度高于`gm`，见：
+
+启用了硬件加速：
+
+``` shellsession
+[ysouyno@arch gm-ocl]$ gm benchmark -iterations 100 convert ~/temp/bg1a.jpg -resize 960x540 ~/temp/out.jpg
+Results: 8 threads 100 iter 6.35s user 4.997407s total 20.010 iter/s 15.748 iter/cpu
+[ysouyno@arch gm-ocl]$ gm benchmark -iterations 100 convert ~/temp/bg1a.jpg -resize 960x540 ~/temp/out.jpg
+Results: 8 threads 100 iter 5.99s user 4.873903s total 20.517 iter/s 16.694 iter/cpu
+[ysouyno@arch gm-ocl]$ gm benchmark convert ~/temp/bg1a.jpg -resize 960x540 ~/temp/out.jpg
+Results: 8 threads 1 iter 0.35s user 0.830804s total 1.204 iter/s 2.857 iter/cpu
+[ysouyno@arch gm-ocl]$ gm benchmark convert ~/temp/bg1a.jpg -resize 960x540 ~/temp/out.jpg
+Results: 8 threads 1 iter 0.30s user 0.136360s total 7.334 iter/s 3.333 iter/cpu
+[ysouyno@arch gm-ocl]$ gm benchmark convert ~/temp/bg1a.jpg -resize 960x540 ~/temp/out.jpg
+Results: 8 threads 1 iter 0.29s user 0.814550s total 1.228 iter/s 3.448 iter/cpu
+[ysouyno@arch gm-ocl]$ echo $MAGICK_OCL_DEVICE
+true
+[ysouyno@arch gm-ocl]$
+```
+
+没有启用硬件加速：
+
+``` shellsession
+[ysouyno@arch ~]$ gm benchmark -iterations 100 convert ~/temp/bg1a.jpg -resize 960x540 ~/temp/out.jpg
+Results: 8 threads 100 iter 40.57s user 5.829435s total 17.154 iter/s 2.465 iter/cpu
+[ysouyno@arch ~]$ gm benchmark -iterations 100 convert ~/temp/bg1a.jpg -resize 960x540 ~/temp/out.jpg
+Results: 8 threads 100 iter 42.74s user 6.115149s total 16.353 iter/s 2.340 iter/cpu
+[ysouyno@arch ~]$ gm benchmark convert ~/temp/bg1a.jpg -resize 960x540 ~/temp/out.jpg
+Results: 8 threads 1 iter 0.31s user 0.057625s total 17.354 iter/s 3.226 iter/cpu
+[ysouyno@arch ~]$ gm benchmark convert ~/temp/bg1a.jpg -resize 960x540 ~/temp/out.jpg
+Results: 8 threads 1 iter 0.32s user 0.057751s total 17.316 iter/s 3.125 iter/cpu
+[ysouyno@arch ~]$ gm benchmark convert ~/temp/bg1a.jpg -resize 960x540 ~/temp/out.jpg
+Results: 8 threads 1 iter 0.31s user 0.057476s total 17.399 iter/s 3.226 iter/cpu
+[ysouyno@arch ~]$ echo $MAGICK_OCL_DEVICE
+
+[ysouyno@arch ~]$
+```
+
+分析：在启用了硬件加速后，`gm-ocl`每次都将加载`~/.cache/ImageMagick/`中的镜像，读取磁盘文件属于慢操作；而`gm`则没有这种加载时间的影响。当迭代`100`次时`gm-ocl`的加载时间比重就缩小了。
+
+如果改成`1000`次的话，似乎`gm-ocl`的优势更加明显。
+
+启用了硬件加速：
+
+``` shellsession
+[ysouyno@arch gm-ocl]$ gm benchmark -iterations 100 convert ~/temp/bg1a.jpg -resize 960x540 ~/temp/out.jpg
+Results: 8 threads 100 iter 6.02s user 4.814306s total 20.771 iter/s 16.611 iter/cpu
+[ysouyno@arch gm-ocl]$ gm benchmark -iterations 1000 convert ~/temp/bg1a.jpg -resize 960x540 ~/temp/out.jpg
+Results: 8 threads 1000 iter 59.54s user 43.377261s total 23.054 iter/s 16.795 iter/cpu
+[ysouyno@arch gm-ocl]$ echo $MAGICK_OCL_DEVICE
+true
+[ysouyno@arch gm-ocl]$
+```
+
+没有启用硬件加速：
+
+``` shellsession
+[ysouyno@arch ~]$ gm benchmark -iterations 100 convert ~/temp/bg1a.jpg -resize 960x540 ~/temp/out.jpg
+Results: 8 threads 100 iter 41.49s user 5.985783s total 16.706 iter/s 2.410 iter/cpu
+[ysouyno@arch ~]$ gm benchmark -iterations 1000 convert ~/temp/bg1a.jpg -resize 960x540 ~/temp/out.jpg
+Results: 8 threads 1000 iter 536.90s user 77.881720s total 12.840 iter/s 1.863 iter/cpu
+[ysouyno@arch ~]$ echo $MAGICK_OCL_DEVICE
+
+[ysouyno@arch ~]$
+```
