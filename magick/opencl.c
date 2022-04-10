@@ -1315,8 +1315,8 @@ static void CacheOpenCLKernel(MagickCLDevice device,char *filename,
   binaryProgram=(unsigned char*) AcquireQuantumMemory(1,binaryProgramSize);
   if (binaryProgram == (unsigned char *) NULL)
     {
-      // (void) ThrowMagickException(exception,GetMagickModule(),
-      //   ResourceLimitError,"MemoryAllocationFailed","`%s'",filename);
+      (void) ThrowException(exception,
+        ResourceLimitError,MemoryAllocationFailed,"CacheOpenCLKernel");
       return;
     }
   status=openCL_library->clGetProgramInfo(device->program,
@@ -1446,6 +1446,8 @@ static MagickBooleanType CompileOpenCLKernel(MagickCLDevice device,
   {
     // (void) ThrowMagickException(exception,GetMagickModule(),DelegateWarning,
     //   "clBuildProgram failed.","(%d)",(int)status);
+    (void) LogMagickEvent(AccelerateEvent,GetMagickModule(), // TODO(ocl)
+      "clBuildProgram failed: %d",(int)status);
     LogOpenCLBuildFailure(device,kernel,exception);
     return(MagickFalse);
   }

@@ -50,7 +50,8 @@ typedef enum
   LocaleBase = 86,
   DeprecateBase = 87,
   RegistryBase = 90,
-  ConfigureBase = 95
+  ConfigureBase = 95,
+  AccelerateBase = 96
 } ExceptionBaseType;
 
 typedef enum
@@ -86,6 +87,7 @@ typedef enum
   DeprecateEvent = EventException + DeprecateBase,
   RegistryEvent = EventException + RegistryBase,
   ConfigureEvent = EventException + ConfigureBase,
+  AccelerateEvent = EventException + AccelerateBase,
 
   WarningException = 300,
   ExceptionWarning = WarningException + ExceptionBase,
@@ -117,6 +119,7 @@ typedef enum
   DeprecateWarning = WarningException + DeprecateBase,
   RegistryWarning = WarningException + RegistryBase,
   ConfigureWarning = WarningException + ConfigureBase,
+  AccelerateWarning = WarningException + AccelerateBase,
 
   ErrorException = 400,
   ExceptionError = ErrorException + ExceptionBase,
@@ -148,6 +151,7 @@ typedef enum
   DeprecateError = ErrorException + DeprecateBase,
   RegistryError = ErrorException + RegistryBase,
   ConfigureError = ErrorException + ConfigureBase,
+  AccelerateError = ErrorException + AccelerateBase,
 
   FatalErrorException = 700,
   ExceptionFatalError = FatalErrorException + ExceptionBase,
@@ -178,7 +182,8 @@ typedef enum
   LocaleFatalError = FatalErrorException + LocaleBase,
   DeprecateFatalError = FatalErrorException + DeprecateBase,
   RegistryFatalError = FatalErrorException + RegistryBase,
-  ConfigureFatalError = FatalErrorException + ConfigureBase
+  ConfigureFatalError = FatalErrorException + ConfigureBase,
+  AccelerateFatalError = FatalErrorException + AccelerateBase
 } ExceptionType;
 
 /*

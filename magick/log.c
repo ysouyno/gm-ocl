@@ -149,6 +149,7 @@ static const struct
     /* this one is actually not used anymore */
     STATIC_EVMASK( "exception", ExceptionEventMask, ExceptionBase, ExceptionBase ),
     STATIC_EVMASK( "option", OptionEventMask, OptionBase, OptionBase ),
+    STATIC_EVMASK( "accelerate", AccelerateEventMask, AccelerateBase, AccelerateBase ),
     STATIC_EVMASK( "all", AllEventsMask, 0, 0 )
   };
 
@@ -586,6 +587,7 @@ MagickExport  unsigned int LogMagickEventList(const ExceptionType type,
     case DeprecateBase: domain=(char *) "Deprecate"; break;
     case RegistryBase: domain=(char *) "Registry"; break;
     case ConfigureBase: domain=(char *) "Configure"; break;
+    case AccelerateBase: domain=(char *) "Accelerate"; break;
     default: domain=(char *) "UnknownEvent"; break;
   }
   switch ((((unsigned int) type) / 100) * 100)
