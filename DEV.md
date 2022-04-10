@@ -48,6 +48,8 @@
         - [关于`LiberateMagickResource()`的闪退问题（三）](#关于liberatemagickresource的闪退问题三)
     - [<2022-04-07 Thu>](#2022-04-07-thu)
         - [`gm benchmark`比较](#gm-benchmark比较)
+    - [<2022-04-10 Sun>](#2022-04-10-sun)
+        - [关于`ThrowMagickException()`的替代](#关于throwmagickexception的替代)
 
 <!-- markdown-toc end -->
 
@@ -1540,3 +1542,25 @@ Results: 8 threads 1000 iter 536.90s user 77.881720s total 12.840 iter/s 1.863 i
 
 [ysouyno@arch ~]$
 ```
+
+## <2022-04-10 Sun>
+
+### 关于`ThrowMagickException()`的替代
+
+刚刚我为`GM`增加了`AccelerateEvent`，因为我在`opencl.c:CompileOpenCLKernel()`中没有找到合适的方法替代`IM`的`ThrowMagickException()`，目前用日志代替异常（其实这个异常本身也没有结束程序的功能，况且如果这里发生错误的话也没必要结束程序）：
+
+``` c++
+status=openCL_library->clBuildProgram(device->program,1,&device->deviceID,
+  options,NULL,NULL);
+if (status != CL_SUCCESS)
+{
+  // (void) ThrowMagickException(exception,GetMagickModule(),DelegateWarning,
+  //   "clBuildProgram failed.","(%d)",(int)status);
+  (void) LogMagickEvent(AccelerateEvent,GetMagickModule(), // TODO(ocl)
+    "clBuildProgram failed: %d",(int)status);
+  LogOpenCLBuildFailure(device,kernel,exception);
+  return(MagickFalse);
+}
+```
+
+如果程序走进这个`if`分支中，说明使用硬件加速失败，期望的行为是走原来流程，这样的话就不会因为初始化硬件加速而耽误太长时间。而实际上程序确实花费了一定的时间且走了原有流程。原`IM`中也是如此，我觉得这是一个问题。
