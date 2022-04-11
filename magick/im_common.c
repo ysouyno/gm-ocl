@@ -137,7 +137,7 @@ MagickExport StringInfo *ConfigureFileToStringInfo(const char *filename)
     *map;
 
   assert(filename != (const char *) NULL);
-  file=open/*_utf8*/(filename,O_RDONLY | O_BINARY,0);
+  file=open(filename,O_RDONLY | O_BINARY,0);
   if (file == -1)
     return((StringInfo *) NULL);
   offset=(MagickOffsetType) lseek(file,0,SEEK_END);
@@ -695,7 +695,7 @@ MagickExport MagickBooleanType GetPathAttributes(const char *path,
       return(MagickFalse);
     }
   (void) memset(attributes,0,sizeof(struct stat));
-  status=/*stat_utf8*/stat(path,(struct stat *) attributes) == 0 ? MagickTrue :
+  status=stat(path,(struct stat *) attributes) == 0 ? MagickTrue :
     MagickFalse;
   return(status);
 }

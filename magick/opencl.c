@@ -1172,7 +1172,7 @@ static void CacheOpenCLBenchmarks(MagickCLEnv clEnv)
     GetOpenCLCacheDirectory(),DirectorySeparator,
     IMAGEMAGICK_PROFILE_FILE);
 
-  cache_file=/*fopen_utf8*/fopen(filename,"wb");
+  cache_file=fopen(filename,"wb");
   if (cache_file == (FILE *) NULL)
     return;
   fwrite("<devices>\n",sizeof(char),10,cache_file);
@@ -1379,7 +1379,7 @@ static void LogOpenCLBuildFailure(MagickCLDevice device,const char *kernel,
   (void) FormatLocaleString(filename,MagickPathExtent,"%s%s%s",
     GetOpenCLCacheDirectory(),DirectorySeparator,"magick_badcl.cl");
 
-  (void) /*remove_utf8*/remove(filename);
+  (void) remove(filename);
   (void) BlobToFile(filename,kernel,strlen(kernel),exception);
 
   openCL_library->clGetProgramBuildInfo(device->program,device->deviceID,
@@ -1391,7 +1391,7 @@ static void LogOpenCLBuildFailure(MagickCLDevice device,const char *kernel,
   (void) FormatLocaleString(filename,MagickPathExtent,"%s%s%s",
     GetOpenCLCacheDirectory(),DirectorySeparator,"magick_badcl.log");
 
-  (void) /*remove_utf8*/remove(filename);
+  (void) remove(filename);
   (void) BlobToFile(filename,log,log_size,exception);
   log=(char*)RelinquishMagickMemory(log);
 }
@@ -1604,7 +1604,7 @@ MagickPrivate void DumpOpenCLProfileData()
   (void) FormatLocaleString(filename,MagickPathExtent,"%s%s%s",
     GetOpenCLCacheDirectory(),DirectorySeparator,"ImageMagickOpenCL.log");
 
-  log=/*fopen_utf8*/fopen(filename,"wb");
+  log=fopen(filename,"wb");
   if (log == (FILE *) NULL)
     return;
   for (i = 0; i < default_CLEnv->number_devices; i++)
@@ -1711,8 +1711,9 @@ static MagickBooleanType RegisterCacheEvent(MagickCLCacheInfo info,
   else
     info->events=ResizeQuantumMemory(info->events,++info->event_count,
       sizeof(*info->events));
-  // if (info->events == (cl_event *) NULL)
-  //   ThrowFatalException(ResourceLimitFatalError,"MemoryAllocationFailed");
+  if (info->events == (cl_event *) NULL)
+    MagickFatalError(ResourceLimitFatalError,MemoryAllocationFailed,
+      "ocl: RegisterCacheEvent");
   info->events[info->event_count-1]=event;
   UnlockSemaphoreInfo(info->events_semaphore);
   return(MagickTrue);
@@ -2833,8 +2834,9 @@ MagickPrivate MagickBooleanType RecordProfileData(MagickCLDevice device,
       profile_record->kernel_name=name;
       device->profile_records=ResizeQuantumMemory(device->profile_records,(i+2),
         sizeof(*device->profile_records));
-      // if (device->profile_records == (KernelProfileRecord *) NULL)
-      //   ThrowFatalException(ResourceLimitFatalError,"MemoryAllocationFailed");
+      if (device->profile_records == (KernelProfileRecord *) NULL)
+        MagickFatalError(ResourceLimitFatalError,MemoryAllocationFailed,
+          "ocl: RecordProfileData");
       device->profile_records[i]=profile_record;
       device->profile_records[i+1]=(KernelProfileRecord) NULL;
     }
