@@ -50,6 +50,9 @@
         - [`gm benchmark`比较](#gm-benchmark比较)
     - [<2022-04-10 Sun>](#2022-04-10-sun)
         - [关于`ThrowMagickException()`的替代](#关于throwmagickexception的替代)
+    - [<2022-04-11 Mon>](#2022-04-11-mon)
+        - [关于`*_utf8`系列函数](#关于_utf8系列函数)
+        - [关于`lt_dlclose()`函数](#关于lt_dlclose函数)
 
 <!-- markdown-toc end -->
 
@@ -1564,3 +1567,15 @@ if (status != CL_SUCCESS)
 ```
 
 如果程序走进这个`if`分支中，说明使用硬件加速失败，期望的行为是走原来流程，这样的话就不会因为初始化硬件加速而耽误太长时间。而实际上程序确实花费了一定的时间且走了原有流程。原`IM`中也是如此，我觉得这是一个问题。
+
+## <2022-04-11 Mon>
+
+### 关于`*_utf8`系列函数
+
+从`IM`中拷贝过来的`open_utf8()`，`fopen_utf8()`，`stat_utf8()`及`remove_utf8()`函数直接用非`_utf8`的函数代替。`IM`在`windows`下使用的是宽字符，所以有那样的处理。
+
+### 关于`lt_dlclose()`函数
+
+之前将`lt_dlclose()`函数改成了`dlclose()`函数，真是多此一举。因为在`windows`下`lt_dlclose()`是一个宏，它最终调用`FreeLibrary()`。
+
+在`linux`下使用`lt_dlclose()`需要添加`-lltdl`链接选项，发现在`IM`中只要使用了`--enable-opencl`后运行`./configure`就自动添加上了`-lltdl`，我想在`GM`中也要实现它。
