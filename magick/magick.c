@@ -175,6 +175,9 @@ DestroyMagick(void)
 #if defined(HasX11)
   MagickXDestroyX11Resources();
 #endif
+#if defined(HAVE_OPENCL)
+  OpenCLTerminus();
+#endif
   DestroyColorInfo();           /* Color database */
   DestroyDelegateInfo();        /* External delegate information */
   DestroyTypeInfo();            /* Font information */
