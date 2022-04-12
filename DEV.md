@@ -53,6 +53,8 @@
     - [<2022-04-11 Mon>](#2022-04-11-mon)
         - [关于`*_utf8`系列函数](#关于_utf8系列函数)
         - [关于`lt_dlclose()`函数](#关于lt_dlclose函数)
+    - [<2022-04-12 Tue>](#2022-04-12-tue)
+        - [关于`-lltdl`链接选辑](#关于-lltdl链接选辑)
 
 <!-- markdown-toc end -->
 
@@ -1579,3 +1581,65 @@ if (status != CL_SUCCESS)
 之前将`lt_dlclose()`函数改成了`dlclose()`函数，真是多此一举。因为在`windows`下`lt_dlclose()`是一个宏，它最终调用`FreeLibrary()`。
 
 在`linux`下使用`lt_dlclose()`需要添加`-lltdl`链接选项，发现在`IM`中只要使用了`--enable-opencl`后运行`./configure`就自动添加上了`-lltdl`，我想在`GM`中也要实现它。
+
+## <2022-04-12 Tue>
+
+### 关于`-lltdl`链接选辑
+
+从早上到现在我一直在尝试`--enable-opencl`时自动添加上`-lltdl`链接选项。我参考了`IM`中的`configure.ac`中的实现，修改后`GM`的`configure.ac`的片断：
+
+``` shell
+#
+# Optionally check for libltdl if using it is still enabled
+#
+# Only use/depend on libtdl if we are building modules.  This is a
+# change from previous releases (prior to 1.3.17) which supported
+# loaded modules via libtdl if shared libraries were built.  of
+# whether modules are built or not.
+have_ltdl='no'
+LIB_LTDL=''
+if test "$build_modules" != 'no' || test "X$no_cl" != 'Xyes'
+then
+  AC_MSG_CHECKING([for libltdl ])
+  AC_MSG_RESULT()
+  failed=0
+  passed=0
+  AC_CHECK_HEADER([ltdl.h],[passed=`expr $passed + 1`],[failed=`expr $failed + 1`])
+  AC_CHECK_LIB([ltdl],[lt_dlinit],[passed=`expr $passed + 1`],[failed=`expr $failed + 1`],)
+  AC_MSG_CHECKING([if libltdl package is complete])
+  if test $passed -gt 0
+  then
+    if test $failed -gt 0
+    then
+      AC_MSG_RESULT([no -- some components failed test])
+      have_ltdl='no (failed tests)'
+    else
+      LIB_LTDL='-lltdl'
+      LIBS="$LIB_LTDL $LIBS"
+      AC_DEFINE(HasLTDL,1,[Define if using libltdl to support dynamically loadable modules])
+      AC_MSG_RESULT([yes])
+      have_ltdl='yes'
+    fi
+  else
+    AC_MSG_RESULT([no])
+  fi
+  if test "$have_ltdl" != 'yes'
+  then
+    AC_MSG_FAILURE([libltdl is required by modules and OpenCL builds],[1])
+  fi
+fi
+AM_CONDITIONAL(WITH_LTDL, test "$have_ltdl" != 'no')
+```
+
+然后在设置`MAGICK_DEP_LIBS`值的`if`和`else`分支中保证都含有`$LIB_LTDL`，同时注意`no_cl`的变量位置问题，否则上面代码段的`no_cl`值为空，导致上面代码段中的`if`分支始终能进入。
+
+虽然经过这样的处理可以实现当使用`--enable-opencl`时自动加上`-lltdl`链接选项，但是引出了一个新的问题，当运行`gm`时：
+
+``` shellsession
+[ysouyno@arch gm-ocl]$ gm display ~/temp/bg1a.jpg
+gm display: No decode delegate for this image format (/home/ysouyno/temp/bg1a.jpg).
+gm display: Unable to open file (Untitled) [No such file or directory].
+[ysouyno@arch gm-ocl]$
+```
+
+经过调查发现，这是由于`HasLTDL`宏被启用的缘故。
