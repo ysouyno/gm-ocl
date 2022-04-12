@@ -54,7 +54,8 @@
         - [关于`*_utf8`系列函数](#关于_utf8系列函数)
         - [关于`lt_dlclose()`函数](#关于lt_dlclose函数)
     - [<2022-04-12 Tue>](#2022-04-12-tue)
-        - [关于`-lltdl`链接选辑](#关于-lltdl链接选辑)
+        - [关于`-lltdl`链接选项（一）](#关于-lltdl链接选项一)
+        - [关于`-lltdl`链接选项（二）](#关于-lltdl链接选项二)
 
 <!-- markdown-toc end -->
 
@@ -1584,7 +1585,7 @@ if (status != CL_SUCCESS)
 
 ## <2022-04-12 Tue>
 
-### 关于`-lltdl`链接选辑
+### 关于`-lltdl`链接选项（一）
 
 从早上到现在我一直在尝试`--enable-opencl`时自动添加上`-lltdl`链接选项。我参考了`IM`中的`configure.ac`中的实现，修改后`GM`的`configure.ac`的片断：
 
@@ -1643,3 +1644,36 @@ gm display: Unable to open file (Untitled) [No such file or directory].
 ```
 
 经过调查发现，这是由于`HasLTDL`宏被启用的缘故。
+
+### 关于`-lltdl`链接选项（二）
+
+这里发现另外一个问题，在`IM`中也存在这个问题。
+
+虚拟机环境中，有存在`cl.h`头文件，但没有`libOpenCL.so`的情况，这种情况下安装各种`intel`或者`mesa`的`runtime`均不能配置成功可运行的`opencl`的环境（可以从`clinfo`的运行结果来看），这样的话，按“[关于`-lltdl`链接选项（一）](#关于-lltdl链接选项一)”的修改使用`--enable-opencl`选项编译`GM`和`IM`的话，均编译失败：
+
+``` shellsession
+undefined reference to `lt_dlclose'
+```
+
+因为如果有`cl.h`头文件的话，那么`HAVE_CL_CL_H`宏将启用，则`HAVE_OPENCL`宏也被启用，这样的话`lt_dlclose()`就可见了，但是没有`opencl`的链接环境，导致`no_cl`变量为`yes`，则`-lltdl`被忽略，从而链接失败，出现上述问题。
+
+``` c++
+#if defined(HAVE_CL_CL_H)
+#  include <CL/cl.h>
+#  define HAVE_OPENCL 1
+#endif
+#if defined(HAVE_OPENCL_CL_H)
+#  include <OpenCL/cl.h>
+#  define HAVE_OPENCL 1
+#endif
+```
+
+阅读了一下`GM`的`configure.ac`中关于`build_modules`的代码，了解到要在原生的`GM`中启用`-lltdl`，需要使用如下命令：
+
+``` shellsession
+$ ./configure --enable-shared --with-modules
+```
+
+这样在`lib/GraphicsMagick-1.3.35/module-Q8/coders`目录中生成大量的`.la`文件。
+
+我在想，我的要求只是简单的在`--enable-opencl`时添加一个链接选项，有必要大动干戈的修改原`GM`的`libltdl`的编译逻辑吗？我可以在`configure.ac`中额外处理`no_cl`，而不去启用`HasLTDL`宏？这样处理好不好？
