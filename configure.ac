@@ -3595,6 +3595,12 @@ if test "X$no_cl" != 'Xyes'; then
    MAGICK_FEATURES="$MAGICK_FEATURES OpenCL"
 fi
 
+# Add '-lltdl' if OpenCL enabled
+LIB_OPENCL_WITH_LTDL=''
+if test "X$no_cl" != 'Xyes'; then
+  LIB_OPENCL_WITH_LTDL='-lltdl'
+fi
+
 # Remove extraneous spaces from output variables (asthetic)
 DELEGATES=`echo $DELEGATES | sed -e 's/  */ /g'`
 MAGICK_FEATURES=`echo $MAGICK_FEATURES | sed -e 's/  */ /g'`
@@ -3644,6 +3650,12 @@ then
 else
   MAGICK_DEP_LIBS="$LIBS_USER $LIB_JBIG $LIB_WEBP $LIB_LCMS $LIB_TIFF $LIB_TTF $LIB_JP2 $LIB_JPEG $LIB_GS $LIB_PNG $LIB_FPX $LIB_WMF $LIB_DPS $LIB_XEXT $LIB_IPC $LIB_X11 $LIB_LZMA $LIB_BZLIB $LIB_XML $LIB_ZLIB $LIB_ZSTD $LIB_TRIO $LIB_GDI32 $LIB_MATH $LIB_THREAD $LIB_TCMALLOC $LIB_UMEM $LIB_MTMALLOC"
 fi
+
+if test "X$no_cl" != 'Xyes'
+then
+  MAGICK_DEP_LIBS="$MAGICK_DEP_LIBS $LIB_OPENCL_WITH_LTDL"
+fi
+
 MAGICK_EXTRA_DEP_LIBS="$LIB_OMP" # Extra libraries typically added due to CFLAGS
 AC_SUBST(MAGICK_DEP_LIBS)
 AC_SUBST(MAGICK_EXTRA_DEP_LIBS)
