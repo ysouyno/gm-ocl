@@ -56,6 +56,8 @@
     - [<2022-04-12 Tue>](#2022-04-12-tue)
         - [关于`-lltdl`链接选项（一）](#关于-lltdl链接选项一)
         - [关于`-lltdl`链接选项（二）](#关于-lltdl链接选项二)
+    - [<2022-04-13 Wed>](#2022-04-13-wed)
+        - [关于`-lltdl`链接选项（三）](#关于-lltdl链接选项三)
 
 <!-- markdown-toc end -->
 
@@ -1677,3 +1679,17 @@ $ ./configure --enable-shared --with-modules
 这样在`lib/GraphicsMagick-1.3.35/module-Q8/coders`目录中生成大量的`.la`文件。
 
 我在想，我的要求只是简单的在`--enable-opencl`时添加一个链接选项，有必要大动干戈的修改原`GM`的`libltdl`的编译逻辑吗？我可以在`configure.ac`中额外处理`no_cl`，而不去启用`HasLTDL`宏？这样处理好不好？
+
+## <2022-04-13 Wed>
+
+### 关于`-lltdl`链接选项（三）
+
+赶紧结束吧，这个链接选项不能搞两天呀！既然`IM`也有同样的问题，那么就不考虑上面所说的，存在`cl.h`头文件，但没有`libOpenCL.so`的情况，造成链接失败。比如出现如下提示：
+
+``` shellsession
+undefined reference to symbol 'dlsym@@GLIBC_2.2.5'
+```
+
+其它的测试看起来一切正常。
+
+另因为`lt_dlclose()`也适用于`windows`平台，因此得尽快支持该平台，此平台还有好多开发，宏调整等等，得尽快完善起来。
