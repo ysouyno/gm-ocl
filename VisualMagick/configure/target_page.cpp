@@ -29,7 +29,8 @@ CTargetPage::CTargetPage() : CPropertyPage(CTargetPage::IDD)
 	m_bigCoderDLL = FALSE;
 	m_build64Bit = FALSE;
 	m_openMP = FALSE;
-        m_speedOpt = FALSE;
+	m_speedOpt = FALSE;
+	m_openCL = FALSE;
 	//}}AFX_DATA_INIT
 }
 
@@ -52,6 +53,7 @@ void CTargetPage::DoDataExchange(CDataExchange* pDX)
 	DDX_Check(pDX, IDC_BUILD_64_BIT, m_build64Bit);
 	DDX_Check(pDX, IDC_OPEN_MP, m_openMP);
 	DDX_Check(pDX, IDC_SPEED_OPT, m_speedOpt);
+	DDX_Check(pDX, IDC_OPEN_CL, m_openCL);
 	//}}AFX_DATA_MAP
 }
 

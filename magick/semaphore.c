@@ -719,7 +719,7 @@ static void *RelinquishSemaphoreMemory(void *memory)
 {
   if (memory == (void *) NULL)
     return((void *) NULL);
-#if defined(/*MAGICKCORE_HAVE_POSIX_MEMALIGN*/HAVE_POSIX_MEMALIGN)
+#if defined(HAVE_POSIX_MEMALIGN)
   free(memory);
 #elif defined(MAGICKCORE_HAVE__ALIGNED_MALLOC)
   _aligned_free(memory);
@@ -735,9 +735,9 @@ MagickExport void RelinquishSemaphoreInfo(SemaphoreInfo **semaphore_info)
   assert((*semaphore_info) != (SemaphoreInfo *) NULL);
   assert((*semaphore_info)->signature == MagickSignature);
   LockMagickMutex();
-#if defined(/*MAGICKCORE_OPENMP_SUPPORT*/HAVE_OPENMP)
+#if defined(HAVE_OPENMP)
   omp_destroy_lock((omp_lock_t *) &(*semaphore_info)->mutex);
-#elif defined(/*MAGICKCORE_THREAD_SUPPORT*/HAVE_PTHREAD)
+#elif defined(HAVE_PTHREAD)
   {
     int
       status;
@@ -750,7 +750,7 @@ MagickExport void RelinquishSemaphoreInfo(SemaphoreInfo **semaphore_info)
         _exit(1);
       }
   }
-#elif defined(/*MAGICKCORE_WINDOWS_SUPPORT*/MSWINDOWS)
+#elif defined(MSWINDOWS)
   DeleteCriticalSection(&(*semaphore_info)->mutex);
 #endif
   (*semaphore_info)->signature=(~MagickSignature);

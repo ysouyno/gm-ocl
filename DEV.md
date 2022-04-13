@@ -58,6 +58,7 @@
         - [关于`-lltdl`链接选项（二）](#关于-lltdl链接选项二)
     - [<2022-04-13 Wed>](#2022-04-13-wed)
         - [关于`-lltdl`链接选项（三）](#关于-lltdl链接选项三)
+        - [支持`windows`](#支持windows)
 
 <!-- markdown-toc end -->
 
@@ -1693,3 +1694,16 @@ undefined reference to symbol 'dlsym@@GLIBC_2.2.5'
 其它的测试看起来一切正常。
 
 另因为`lt_dlclose()`也适用于`windows`平台，因此得尽快支持该平台，此平台还有好多开发，宏调整等等，得尽快完善起来。
+
+### 支持`windows`
+
+1. 为`configure.exe`增加“Enable OpenCL”多选框
+2. 从“[VisualMagick](https://github.com/ImageMagick/VisualMagick.git)”拷贝`OpenCL/CL`头文件。
+3. `vs`报错：`error C2004: expected 'defined(id)'`，因为它不支持这样的语法：
+
+``` c++
+#if defined(/*MAGICKCORE_OPENMP_SUPPORT*/HAVE_OPENMP)
+```
+
+4. 一些函数的`MagickExport`得去掉，因为重定义。
+5. `MAGICKCORE_WINDOWS_SUPPORT`替换为`MSWINDOWS`。

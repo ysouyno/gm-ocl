@@ -342,6 +342,7 @@ class CommandLineInfo : public CCommandLineInfo
   BOOL m_build64Bit;
   BOOL m_noWizard;
   BOOL m_openMP;
+  BOOL m_openCL;
   BOOL m_speedOpt;
   int m_projectType;
   int m_quantumDepth;

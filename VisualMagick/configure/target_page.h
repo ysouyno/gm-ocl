@@ -37,6 +37,7 @@ public:
 	BOOL	m_build64Bit;
 	BOOL	m_openMP;
 	BOOL	m_speedOpt;
+	BOOL	m_openCL;
 	//}}AFX_DATA
 
 

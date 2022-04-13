@@ -13,13 +13,11 @@
 #undef APSTUDIO_READONLY_SYMBOLS
 
 /////////////////////////////////////////////////////////////////////////////
-// Danish resources
+// Danish (Denmark) resources
 
 #if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_DAN)
-#ifdef _WIN32
 LANGUAGE LANG_DANISH, SUBLANG_DEFAULT
 #pragma code_page(1252)
-#endif //_WIN32
 
 #ifdef APSTUDIO_INVOKED
 /////////////////////////////////////////////////////////////////////////////
@@ -58,18 +56,16 @@ END
 
 #endif    // APSTUDIO_INVOKED
 
-#endif    // Danish resources
+#endif    // Danish (Denmark) resources
 /////////////////////////////////////////////////////////////////////////////
 
 
 /////////////////////////////////////////////////////////////////////////////
-// English (U.S.) resources
+// English (United States) resources
 
 #if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_ENU)
-#ifdef _WIN32
 LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
 #pragma code_page(1252)
-#endif //_WIN32
 
 /////////////////////////////////////////////////////////////////////////////
 //
@@ -85,7 +81,7 @@ IDR_MAINFRAME           ICON                    "res\\Configure.ico"
 // Dialog
 //
 
-IDD_WELCOME_PAGE DIALOG  0, 0, 318, 233
+IDD_WELCOME_PAGE DIALOG 0, 0, 318, 233
 STYLE DS_SETFONT | WS_CHILD | WS_DISABLED | WS_CAPTION
 CAPTION "Welcome to the VisualMagick configuration tool."
 FONT 8, "MS Sans Serif"
@@ -126,11 +122,12 @@ BEGIN
     CONTROL         "Build 64-bit distribution",IDC_BUILD_64_BIT,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,15,135,100,10
     LTEXT           "Quantum depth",IDC_STATIC,205,134,55,8
     COMBOBOX        IDC_QUANTUM_DEPTH,260,132,47,50,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
-    CONTROL         "Enable OpenMP",IDC_OPEN_MP,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,205,148,66,10
-    CONTROL         "Speed optimisation",IDC_SPEED_OPT,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,205,164,86,10
+    CONTROL         "Enable OpenMP",IDC_OPEN_MP,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,205,151,66,10
+    CONTROL         "Speed optimisation",IDC_SPEED_OPT,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,205,167,86,10
+    CONTROL         "Enable OpenCL",IDC_OPEN_CL,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,205,198,68,10
 END
 
-IDD_SYSTEM_PAGE DIALOG  0, 0, 318, 233
+IDD_SYSTEM_PAGE DIALOG 0, 0, 318, 233
 STYLE DS_SETFONT | WS_CHILD | WS_DISABLED | WS_CAPTION
 CAPTION "System Setup"
 FONT 8, "MS Sans Serif"
@@ -153,7 +150,7 @@ BEGIN
     PUSHBUTTON      "Browse",IDC_OUTPUT_LIB_BROWSE,275,183,30,13
 END
 
-IDD_FINISHED_PAGE DIALOG  0, 0, 318, 233
+IDD_FINISHED_PAGE DIALOG 0, 0, 318, 233
 STYLE DS_SETFONT | WS_CHILD | WS_DISABLED | WS_CAPTION
 CAPTION "VisualMagick configuration finished."
 FONT 8, "MS Sans Serif"
@@ -162,7 +159,7 @@ BEGIN
     PUSHBUTTON      "Build It!",IDC_BuildIt,135,212,50,14,NOT WS_VISIBLE
 END
 
-IDD_WAITDIALOG DIALOG  0, 0, 228, 82
+IDD_WAITDIALOG DIALOG 0, 0, 228, 82
 STYLE DS_SETFONT | DS_MODALFRAME | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU
 FONT 8, "MS Sans Serif"
 BEGIN
@@ -178,7 +175,7 @@ END
 //
 
 #ifdef APSTUDIO_INVOKED
-GUIDELINES DESIGNINFO 
+GUIDELINES DESIGNINFO
 BEGIN
     IDD_WELCOME_PAGE, DIALOG
     BEGIN
@@ -284,12 +281,12 @@ END
 // String Table
 //
 
-STRINGTABLE 
+STRINGTABLE
 BEGIN
     IDS_PROPSHT_CAPTION     "Wizard"
 END
 
-#endif    // English (U.S.) resources
+#endif    // English (United States) resources
 /////////////////////////////////////////////////////////////////////////////
 
 

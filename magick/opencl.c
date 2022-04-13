@@ -103,12 +103,12 @@
 #include "magick/resource.h"
 #include "magick/accelerate-kernels-private.h"
 
-#if defined(/* MAGICKCORE_OPENCL_SUPPORT */HAVE_OPENCL)
+#if defined(HAVE_OPENCL)
 #if defined(MAGICKCORE_LTDL_DELEGATE)
 #include "ltdl.h"
 #endif
 
-#ifndef MAGICKCORE_WINDOWS_SUPPORT
+#ifndef MSWINDOWS
 #include <dlfcn.h>
 #endif
 
@@ -228,7 +228,7 @@ static inline MagickBooleanType MagickCreateDirectory(const char *path)
   int
     status;
 
-#ifdef MAGICKCORE_WINDOWS_SUPPORT
+#ifdef MSWINDOWS
   status=mkdir(path);
 #else
   status=mkdir(path,0777);
@@ -311,7 +311,7 @@ static const char *GetOpenCLCacheDirectory()
           if (home == (char *) NULL)
             {
               home=GetEnvironmentValue("XDG_CACHE_HOME");
-#if defined(MAGICKCORE_WINDOWS_SUPPORT) || defined(__MINGW32__)
+#if defined(MSWINDOWS) || defined(__MINGW32__)
               if (home == (char *) NULL)
                 home=GetEnvironmentValue("LOCALAPPDATA");
               if (home == (char *) NULL)
@@ -2528,7 +2528,7 @@ void *OsLibraryGetFunctionAddress(void *library,const char *functionName)
 {
   if ((library == (void *) NULL) || (functionName == (const char *) NULL))
     return (void *) NULL;
-#ifdef MAGICKCORE_WINDOWS_SUPPORT
+#ifdef MSWINDOWS
     return (void *) GetProcAddress((HMODULE)library,functionName);
 #else
     return (void *) dlsym(library,functionName);
@@ -2541,7 +2541,7 @@ static MagickBooleanType BindOpenCLFunctions()
 #define BIND(X) openCL_library->X= &X;
 #else
   (void) memset(openCL_library,0,sizeof(MagickLibrary));
-#ifdef MAGICKCORE_WINDOWS_SUPPORT
+#ifdef MSWINDOWS
   openCL_library->library=(void *)LoadLibraryA("OpenCL.dll");
 #else
   openCL_library->library=(void *)dlopen("libOpenCL.so",RTLD_NOW);

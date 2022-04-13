@@ -68,6 +68,7 @@ BOOL m_bigCoderDLL = FALSE;
 BOOL openMP = FALSE;
 BOOL speedOpt = TRUE;
 BOOL build64Bit = FALSE;
+BOOL openCL = FALSE;
 
 string release_loc;
 string debug_loc;
@@ -678,6 +679,14 @@ void CConfigureApp::replace_keywords(std::string fileName)
         str += "  #undef HasWEBP\n";
         str += " #endif\n";
         str += "#endif\n";
+      }
+
+      str += "\n// Define to enable OpenCL\n";
+      if (openCL) {
+        str += "#define HAVE_CL_CL_H\n";
+      }
+      else {
+        str += "//#define HAVE_CL_CL_H\n";
       }
 
       infile.close();
@@ -2935,6 +2944,7 @@ BOOL CConfigureApp::InitInstance()
   wizard.m_Page2.m_speedOpt = info.speedOpt();
   wizard.m_Page2.m_projectType = info.projectType();
   wizard.m_Page2.m_quantumDepth = info.quantumDepth();
+  wizard.m_Page2.m_openCL = openCL;
 
   wizard.m_Page3.m_tempRelease = release_loc.c_str();
   wizard.m_Page3.m_tempDebug = debug_loc.c_str();
@@ -3036,6 +3046,7 @@ BOOL CConfigureApp::InitInstance()
       openMP = wizard.m_Page2.m_openMP;
       speedOpt = wizard.m_Page2.m_speedOpt;
       quantumDepth = wizard.m_Page2.m_quantumDepth;
+      openCL = wizard.m_Page2.m_openCL;
       //m_bigCoderDLL = wizard.m_Page2.m_bigCoderDLL;
       release_loc = wizard.m_Page3.m_tempRelease;
       debug_loc = wizard.m_Page3.m_tempDebug;
@@ -3087,6 +3098,9 @@ BOOL CConfigureApp::InitInstance()
       standard_includes_list.push_back("..\\..\\xlib");
       standard_includes_list.push_back("..\\..\\Magick++\\lib");
       //standard_includes_list.push_back("..\\..\\MagickArgs");
+      if (openCL) {
+        standard_includes_list.push_back("..\\..\\VisualMagick\\OpenCL");
+      }
 
       // Write all library project files:
       if (projectType == MULTITHREADEDDLL)
@@ -3513,6 +3527,8 @@ void CommandLineInfo::ParseParam(const char* pszParam, BOOL bFlag, BOOL bLast)
     m_noWizard = TRUE;
   else if (strcmpi(pszParam, "openMP") == 0)
     m_openMP = TRUE;
+  else if (strcmpi(pszParam, "openCL") == 0)
+    m_openCL = TRUE;
   else if (strcmpi(pszParam, "speedOpt") == 0)
     m_speedOpt = TRUE;
   else if (strcmpi(pszParam, "Q8") == 0)

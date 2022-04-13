@@ -400,7 +400,7 @@ MagickExport StringInfo *DestroyStringInfo(StringInfo *string_info)
 %    o name: the environment name.
 %
 */
-MagickExport char *GetEnvironmentValue(const char *name)
+char *GetEnvironmentValue(const char *name)
 {
   const char
     *environment;
@@ -610,7 +610,7 @@ MagickPrivate ssize_t FormatLocaleStringList(char *magick_restrict string,
     if (locale == (locale_t) NULL)
       n=(ssize_t) vsnprintf(string,length,format,operands);
     else
-#if defined(MAGICKCORE_WINDOWS_SUPPORT)
+#if defined(MSWINDOWS)
       n=(ssize_t) vsnprintf_l(string,length,format,locale,operands);
 #else
       n=(ssize_t) vsnprintf_l(string,length,locale,format,operands);
@@ -644,7 +644,7 @@ MagickPrivate ssize_t FormatLocaleStringList(char *magick_restrict string,
   return(n);
 }
 
-MagickExport ssize_t FormatLocaleString(char *magick_restrict string,
+ssize_t FormatLocaleString(char *magick_restrict string,
   const size_t length,const char *magick_restrict format,...)
 {
   ssize_t
@@ -683,7 +683,7 @@ MagickExport ssize_t FormatLocaleString(char *magick_restrict string,
 %   o  attributes: the path attributes are returned here.
 %
 */
-MagickExport MagickBooleanType GetPathAttributes(const char *path,
+MagickBooleanType GetPathAttributes(const char *path,
   void *attributes)
 {
   MagickBooleanType
@@ -700,7 +700,7 @@ MagickExport MagickBooleanType GetPathAttributes(const char *path,
   return(status);
 }
 
-MagickExport void *AcquireCriticalMemory(const size_t len)
+void *AcquireCriticalMemory(const size_t len)
 {
   void
     *memory;

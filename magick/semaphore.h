@@ -54,23 +54,23 @@ extern MagickExport void
   independent means of synchronization to each such translation unit.
 */
 
-#if defined(/*MAGICKCORE_OPENMP_SUPPORT*/HAVE_OPENMP)
+#if defined(HAVE_OPENMP)
 static MagickBool
   translation_unit_initialized = MagickFalse;
 
 static omp_lock_t
   translation_unit_mutex;
-#elif defined(/*MAGICKCORE_THREAD_SUPPORT*/HAVE_PTHREAD)
+#elif defined(HAVE_PTHREAD)
 static pthread_mutex_t
   translation_unit_mutex = PTHREAD_MUTEX_INITIALIZER;
-#elif defined(/*MAGICKCORE_WINDOWS_SUPPORT*/MSWINDOWS)
+#elif defined(MSWINDOWS)
 static LONG
   translation_unit_mutex = 0;
 #endif
 
 static inline void DestroyMagickMutex(void)
 {
-#if defined(/*MAGICKCORE_OPENMP_SUPPORT*/HAVE_OPENMP)
+#if defined(HAVE_OPENMP)
   omp_destroy_lock(&translation_unit_mutex);
   translation_unit_initialized=MagickFalse;
 #endif
@@ -78,7 +78,7 @@ static inline void DestroyMagickMutex(void)
 
 static inline void InitializeMagickMutex(void)
 {
-#if defined(/*MAGICKCORE_OPENMP_SUPPORT*/HAVE_OPENMP)
+#if defined(HAVE_OPENMP)
   omp_init_lock(&translation_unit_mutex);
   translation_unit_initialized=MagickTrue;
 #endif
@@ -86,11 +86,11 @@ static inline void InitializeMagickMutex(void)
 
 static inline void LockMagickMutex(void)
 {
-#if defined(/*MAGICKCORE_OPENMP_SUPPORT*/HAVE_OPENMP)
+#if defined(HAVE_OPENMP)
   if (translation_unit_initialized == MagickFalse)
     InitializeMagickMutex();
   omp_set_lock(&translation_unit_mutex);
-#elif defined(/*MAGICKCORE_THREAD_SUPPORT*/HAVE_PTHREAD)
+#elif defined(HAVE_PTHREAD)
   {
     int
       status;
@@ -102,7 +102,7 @@ static inline void LockMagickMutex(void)
         ThrowFatalException(ResourceLimitFatalError,"UnableToLockSemaphore");
       }
   }
-#elif defined(/*MAGICKCORE_WINDOWS_SUPPORT*/MSWINDOWS)
+#elif defined(MSWINDOWS)
   while (InterlockedCompareExchange(&translation_unit_mutex,1L,0L) != 0)
     Sleep(10);
 #endif
@@ -110,9 +110,9 @@ static inline void LockMagickMutex(void)
 
 static inline void UnlockMagickMutex(void)
 {
-#if defined(/*MAGICKCORE_OPENMP_SUPPORT*/HAVE_OPENMP)
+#if defined(HAVE_OPENMP)
   omp_unset_lock(&translation_unit_mutex);
-#elif defined(/*MAGICKCORE_THREAD_SUPPORT*/HAVE_PTHREAD)
+#elif defined(HAVE_PTHREAD)
   {
     int
       status;
@@ -124,7 +124,7 @@ static inline void UnlockMagickMutex(void)
         ThrowFatalException(ResourceLimitFatalError,"UnableToUnlockSemaphore");
       }
   }
-#elif defined(/*MAGICKCORE_WINDOWS_SUPPORT*/MSWINDOWS)
+#elif defined(MSWINDOWS)
   InterlockedExchange(&translation_unit_mutex,0L);
 #endif
 }

@@ -80,7 +80,7 @@ typedef MagickBool MagickBooleanType;
 #  define magick_attribute  __attribute__
 #  define magick_unused(x)  magick_unused_ ## x __attribute__((unused))
 #  define magick_unreferenced(x)  /* nothing */
-#elif defined(MAGICKCORE_WINDOWS_SUPPORT) && !defined(__CYGWIN__)
+#elif defined(MSWINDOWS) && !defined(__CYGWIN__)
 #  define magick_aligned(x,y)  __declspec(align(y)) x
 #  define magick_attribute(x)  /* nothing */
 #  define magick_unused(x) x
@@ -177,7 +177,7 @@ typedef MagickDoubleType Quantum;
 // Copy form GM magick_compat.c
 #define AcquireMagickMemory(memory) malloc(memory)
 
-#if !defined(MAGICKCORE_WINDOWS_SUPPORT)
+#if !defined(MSWINDOWS)
 #if (MAGICKCORE_SIZEOF_UNSIGNED_LONG_LONG == 8)
 typedef long long MagickOffsetType;
 typedef unsigned long long MagickSizeType;
@@ -196,13 +196,24 @@ typedef unsigned __int64 MagickSizeType;
 #define MagickSizeFormat  "I64u"
 #endif
 
+#if defined(MSWINDOWS)
+#ifdef _WIN64
+#  if !defined(SSIZE_MAX)
+#    define SSIZE_MAX LLONG_MAX
+#  endif
+#else
+#  if !defined(SSIZE_MAX)
+#    define SSIZE_MAX LONG_MAX
+#  endif
+#endif
+#endif
 #define MAGICK_SSIZE_MAX (SSIZE_MAX)
 
 #define MagickPrivate
 
-#if defined(/*MAGICKCORE_THREAD_SUPPORT*/HAVE_PTHREAD)
+#if defined(HAVE_PTHREAD)
 typedef pthread_t MagickThreadType;
-#elif defined(/*MAGICKCORE_WINDOWS_SUPPORT*/MSWINDOWS)
+#elif defined(MSWINDOWS)
 typedef DWORD MagickThreadType;
 #else
 typedef pid_t MagickThreadType;
@@ -329,9 +340,9 @@ extern MagickExport ImageInfo
 
 static inline MagickThreadType GetMagickThreadId(void)
 {
-#if defined(/*MAGICKCORE_THREAD_SUPPORT*/HAVE_PTHREAD)
+#if defined(HAVE_PTHREAD)
   return(pthread_self());
-#elif defined(/*MAGICKCORE_WINDOWS_SUPPORT*/MSWINDOWS)
+#elif defined(MSWINDOWS)
   return(GetCurrentThreadId());
 #else
   return(getpid());
