@@ -63,6 +63,7 @@
         - [`windows`平台不能生成内核的`.bin`文件](#windows平台不能生成内核的bin文件)
         - [`_aligned_free()`和`free()`不匹配的问题](#_aligned_free和free不匹配的问题)
         - [关于`R6025 pure virtual function call`的问题](#关于r6025-pure-virtual-function-call的问题)
+        - [`IM`和`GM`函数及宏对照](#im和gm函数及宏对照)
 
 <!-- markdown-toc end -->
 
@@ -1889,3 +1890,17 @@ R6025
 - pure virtual function call
 Unhandled exception at 0x05E88292 (intelocl32.dll) in IMDisplay.exe: Fatal program exit requested.
 ```
+
+### `IM`和`GM`函数及宏对照
+
+| Type    | IM                              | GM                   |
+| :------ | :------------------------       | :-----------------   |
+| FUNC    | SyncImagePixelCache             | SyncImagePixelsEx    |
+| FUNC    | OpenPixelCache                  | OpenCache            |
+| MACRO   | MAGICKCORE_QUANTUM_DEPTH        | QuantumDepth         |
+| FUNC    | GetImagePixelCache              | ModifyCache          |
+| FUNC    | GetVirtualPixelCacheNexus       | AcquireCacheNexus    |
+| FUNC    | PersistPixelCache               | PersistCache         |
+| MACRO   | MAGICKCORE_OPENCL_SUPPORT       | HAVE_OPENCL          |
+| MACRO   | MAGICKCORE_HAVE__ALIGNED_MALLOC | HAVE__ALIGNED_MALLOC |
+| MACRO   | MAGICKCORE_WINDOWS_SUPPORT      | MSWINDOWS            |

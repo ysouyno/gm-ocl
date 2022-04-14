@@ -1831,6 +1831,9 @@ AcquireCacheNexus(const Image *image,const long x,const long y,
                      image->filename);
       return((const PixelPacket *) NULL);
     }
+#if defined(HAVE_OPENCL)
+  CopyOpenCLBuffer(cache_info);
+#endif
 #if 0
   fprintf(stderr,"AcquireCacheNexus(): image->columns=%lu, image->rows=%lu, "
           "x=%ld, y=%ld, columns=%lu, rows=%lu\n",
