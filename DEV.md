@@ -59,6 +59,10 @@
     - [<2022-04-13 Wed>](#2022-04-13-wed)
         - [关于`-lltdl`链接选项（三）](#关于-lltdl链接选项三)
         - [支持`windows`](#支持windows)
+    - [<2022-04-14 周四>](#2022-04-14-周四)
+        - [`windows`平台不能生成内核的`.bin`文件](#windows平台不能生成内核的bin文件)
+        - [`_aligned_free()`和`free()`不匹配的问题](#_aligned_free和free不匹配的问题)
+        - [关于`R6025 pure virtual function call`的问题](#关于r6025-pure-virtual-function-call的问题)
 
 <!-- markdown-toc end -->
 
@@ -1697,6 +1701,8 @@ undefined reference to symbol 'dlsym@@GLIBC_2.2.5'
 
 ### 支持`windows`
 
+新创建了一个临时分支`gm-1.3.35_ocl_win`。
+
 1. 为`configure.exe`增加“Enable OpenCL”多选框
 2. 从“[VisualMagick](https://github.com/ImageMagick/VisualMagick.git)”拷贝`OpenCL/CL`头文件。
 3. `vs`报错：`error C2004: expected 'defined(id)'`，因为它不支持这样的语法：
@@ -1707,3 +1713,173 @@ undefined reference to symbol 'dlsym@@GLIBC_2.2.5'
 
 4. 一些函数的`MagickExport`得去掉，因为重定义。
 5. `MAGICKCORE_WINDOWS_SUPPORT`替换为`MSWINDOWS`。
+
+## <2022-04-14 周四>
+
+### `windows`平台不能生成内核的`.bin`文件
+
+问题出在`CacheOpenCLKernel()`函数中：
+
+``` c++
+static void CacheOpenCLKernel(MagickCLDevice device,char *filename,
+  ExceptionInfo *exception)
+{
+  cl_uint
+    status;
+
+  size_t
+    binaryProgramSize;
+
+  unsigned char
+    *binaryProgram;
+
+  status=openCL_library->clGetProgramInfo(device->program,
+    CL_PROGRAM_BINARY_SIZES,sizeof(size_t),&binaryProgramSize,NULL);
+  if (status != CL_SUCCESS)
+    return;
+  binaryProgram=(unsigned char*) AcquireQuantumMemory(1,binaryProgramSize);
+  if (binaryProgram == (unsigned char *) NULL)
+    {
+      (void) ThrowException(exception,
+        ResourceLimitError,MemoryAllocationFailed,"CacheOpenCLKernel");
+      return;
+    }
+  status=openCL_library->clGetProgramInfo(device->program,
+    CL_PROGRAM_BINARIES,sizeof(unsigned char*),&binaryProgram,NULL);
+  if (status == CL_SUCCESS)
+    {
+      (void) LogMagickEvent(AccelerateEvent,GetMagickModule(),
+        "Creating cache file: \"%s\"",filename);
+      (void) BlobToFile(filename,binaryProgram,binaryProgramSize,exception);
+    }
+  binaryProgram=(unsigned char *) RelinquishMagickMemory(binaryProgram);
+}
+```
+
+因为`clGetProgramInfo()`的返回值是`-30`对应`CL_INVALID_VALUE`错误，修改之后可以临时解决：
+
+``` c++
+static void CacheOpenCLKernel(MagickCLDevice device, char* filename,
+  ExceptionInfo* exception)
+{
+  cl_uint
+    status;
+
+  size_t
+    * binaryProgramSize,
+    num_binaries;
+
+  unsigned char
+    ** binaryProgram;
+
+  status = openCL_library->clGetProgramInfo(device->program, CL_PROGRAM_BINARY_SIZES,
+    0, 0, &num_binaries);
+  if (status != CL_SUCCESS)
+    return;
+  num_binaries = num_binaries / sizeof(size_t);
+  binaryProgramSize = (size_t*)malloc(num_binaries * sizeof(size_t));
+  binaryProgram = (const unsigned char**)calloc(num_binaries, sizeof(unsigned char*));
+  status = openCL_library->clGetProgramInfo(device->program,
+    CL_PROGRAM_BINARY_SIZES, num_binaries * sizeof(size_t), binaryProgramSize, NULL);
+  LogMagickEvent(AccelerateEvent, GetMagickModule(), "clGetProgramInfo return: %d", status);
+  if (status != CL_SUCCESS)
+    return;
+  for (int i = 0; i < num_binaries; ++i) {
+    if (binaryProgramSize[i]) {
+      binaryProgram[i] = (unsigned char*)AcquireQuantumMemory(1, binaryProgramSize[i]);
+      if (binaryProgram[i] == (unsigned char*)NULL)
+      {
+        (void)ThrowException(exception,
+          ResourceLimitError, MemoryAllocationFailed, "CacheOpenCLKernel");
+        return;
+      }
+      status = openCL_library->clGetProgramInfo(device->program,
+        CL_PROGRAM_BINARIES, num_binaries * sizeof(unsigned char*), binaryProgram, NULL);
+      if (status == CL_SUCCESS)
+      {
+        (void)LogMagickEvent(AccelerateEvent, GetMagickModule(),
+          "Creating cache file: \"%s\"", filename);
+        (void)BlobToFile(filename, binaryProgram[i], binaryProgramSize[i], exception);
+      }
+      binaryProgram = (unsigned char*)RelinquishMagickMemory(binaryProgram);
+    }
+  }
+}
+```
+
+### `_aligned_free()`和`free()`不匹配的问题
+
+在`windows`平台下这个问题出现了，之前相同代码在`linux`上运行的很好。
+
+经调查发现是因为在`DestroyMagickCLCacheInfoAndPixels()`函数中使用的是：
+
+``` c++
+MagickFreeAlignedMemory(pixels);
+```
+
+来清除在`pixel_cache.c:OpenCache()`中由：
+
+``` c++
+MagickReallocMemory(PixelPacket *,cache_info->pixels,(size_t) offset);
+```
+
+申请的内存，造成不匹配。
+
+因此`DestroyMagickCLCacheInfoAndPixels()`中改为`MagickFreeMemory()`来释放内存。这里的做法不同于`IM`，在`GM`中未使用对齐的内存，就像`pixel_cache.c:DestroyCacheInfo()`那样释放内存一样，才不会出问题。
+
+``` c++
+  /*
+    Release Cache Pixel Resources
+  */
+  if (MemoryCache == cache_info->type)
+    {
+#if defined(HAVE_OPENCL)
+      if (cache_info->opencl != (MagickCLCacheInfo) NULL)
+        {
+          cache_info->opencl=RelinquishMagickCLCacheInfo(cache_info->opencl,
+            MagickTrue);
+          cache_info->pixels=(Quantum *) NULL;
+        }
+#else
+      MagickFreeMemory(cache_info->pixels);
+      LiberateMagickResource(MemoryResource,cache_info->length);
+#endif
+    }
+```
+
+`OpenCL`中不使用对齐内存对性能影响很大，这可以作为一个性能优化点。
+
+此外`MAGICKCORE_HAVE__ALIGNED_MALLOC`宏应该被替换为`HAVE__ALIGNED_MALLOC`。
+
+### 关于`R6025 pure virtual function call`的问题
+
+调试状态下关闭程序可以看到异常出在：
+
+``` c++
+static MagickCLDevice RelinquishMagickCLDevice(MagickCLDevice device)
+{
+  if (device == (MagickCLDevice) NULL)
+    return((MagickCLDevice) NULL);
+
+  device->platform_name=RelinquishMagickMemory(device->platform_name);
+  device->vendor_name=RelinquishMagickMemory(device->vendor_name);
+  device->name=RelinquishMagickMemory(device->name);
+  device->version=RelinquishMagickMemory(device->version);
+  if (device->program != (cl_program) NULL)
+    (void) openCL_library->clReleaseProgram(device->program);
+  while (device->command_queues_index >= 0)
+    (void) openCL_library->clReleaseCommandQueue(
+      device->command_queues[device->command_queues_index--]);
+  RelinquishSemaphoreInfo(&device->lock);
+  return((MagickCLDevice) RelinquishMagickMemory(device));
+}
+```
+
+这里：
+
+``` c++
+if (device->program != (cl_program) NULL)
+  (void) openCL_library->clReleaseProgram(device->program);
+```
+
+问题很诡异，有时一直出现，有时一直正常。
