@@ -2993,7 +2993,7 @@ static void CL_API_CALL DestroyMagickCLCacheInfoAndPixels(
   pixels=info->pixels;
   LiberateMagickResource(MemoryResource,info->length);
   DestroyMagickCLCacheInfo(info);
-  MagickFreeAlignedMemory(pixels);
+  MagickFreeMemory(pixels);
 }
 
 MagickPrivate MagickCLCacheInfo RelinquishMagickCLCacheInfo(

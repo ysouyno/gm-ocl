@@ -1883,3 +1883,9 @@ if (device->program != (cl_program) NULL)
 ```
 
 问题很诡异，有时一直出现，有时一直正常。
+
+``` text
+R6025
+- pure virtual function call
+Unhandled exception at 0x05E88292 (intelocl32.dll) in IMDisplay.exe: Fatal program exit requested.
+```
