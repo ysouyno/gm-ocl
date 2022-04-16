@@ -4,7 +4,7 @@
 
 ## Why this project?
 
-`GraphicsMagick` (short for `gm`) has no plans to support `OpenCL`, see the official website `FAQ`: [Are there any plans to use OpenCL or CUDA to use a GPU?](http://www.graphicsmagick.org /FAQ.html#are-there-any-plans-to-use-opencl-or-cuda-to-use-a-gpu).
+`GraphicsMagick` (short for `gm`) has no plans to support `OpenCL`, see the official website `FAQ`: "[Are there any plans to use OpenCL or CUDA to use a GPU?](http://www.graphicsmagick.org/FAQ.html#are-there-any-plans-to-use-opencl-or-cuda-to-use-a-gpu)”.
 
 ## Version based
 
@@ -27,6 +27,6 @@ $ ./configure --enable-opencl
 
 ## License
 
-From `FAQ` of `gm`: [How often does GraphicsMagick pick up new code from ImageMagick?](http://www.graphicsmagick.org/FAQ.html#how-often-does-graphicsmagick-pick-up- new-code-from-imagemagick) to learn that `im` currently uses the `Apache` protocol, which focuses on patent protection.
+From `FAQ` of `gm`: "[How often does GraphicsMagick pick up new code from ImageMagick?](http://www.graphicsmagick.org/FAQ.html#how-often-does-graphicsmagick-pick-up-new-code-from-imagemagick)" to learn that `im` currently uses the `Apache` protocol, which focuses on patent protection.
 
 So here is attached [`Copyright.txt` for `gm`](Copyright.txt), [`LICENSE` for `im`](LICENSE.ImageMagick) and [`NOTICE` for `im`](NOTICE.ImageMagick ), click to view details.
