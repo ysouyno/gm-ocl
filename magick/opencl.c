@@ -115,7 +115,7 @@
 /*
   Define declarations.
 */
-#define IMAGEMAGICK_PROFILE_FILE "ImagemagickOpenCLDeviceProfile.xml"
+#define IMAGEMAGICK_PROFILE_FILE "GraphicsMagickOpenCLDeviceProfile.xml"
 
 /*
   Typedef declarations.
@@ -329,11 +329,11 @@ static const char *GetOpenCLCacheDirectory()
               if (status == MagickFalse)
                 status=MagickCreateDirectory(path);
 
-              /* first check if $HOME/ImageMagick exists */
+              /* first check if $HOME/GraphicsMagick exists */
               if (status != MagickFalse)
                 {
                   (void) FormatLocaleString(path,MagickPathExtent,
-                    "%s%sImageMagick",home,DirectorySeparator);
+                    "%s%sGraphicsMagick",home,DirectorySeparator);
 
                   status=GetPathAttributes(path,&attributes);
                   if (status == MagickFalse)
@@ -363,7 +363,7 @@ static const char *GetOpenCLCacheDirectory()
                   if (status != MagickFalse)
                     {
                       (void) FormatLocaleString(path,MagickPathExtent,
-                        "%s%s.cache%sImageMagick",home,DirectorySeparator,
+                        "%s%s.cache%sGraphicsMagick",home,DirectorySeparator,
                         DirectorySeparator);
                       status=GetPathAttributes(path,&attributes);
                       if (status == MagickFalse)
