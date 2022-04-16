@@ -17,7 +17,7 @@
 
 ## 使用步骤
 
-1. 编译`gm`时使用添加`--enable-opencl`参数。
+1. 编译`gm`时使用新增加的`--enable-opencl`参数。
 
 ``` shellsession
 $ ./configure --enable-opencl
