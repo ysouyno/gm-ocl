@@ -64,6 +64,8 @@
         - [`_aligned_free()`和`free()`不匹配的问题](#_aligned_free和free不匹配的问题)
         - [关于`R6025 pure virtual function call`的问题](#关于r6025-pure-virtual-function-call的问题)
         - [`IM`和`GM`函数及宏对照](#im和gm函数及宏对照)
+    - [<2022-04-18 周一>](#2022-04-18-周一)
+        - [关于`clGetPlatformIDs()`在`windows`下的怪现象](#关于clgetplatformids在windows下的怪现象)
 
 <!-- markdown-toc end -->
 
@@ -1904,3 +1906,23 @@ Unhandled exception at 0x05E88292 (intelocl32.dll) in IMDisplay.exe: Fatal progr
 | MACRO   | MAGICKCORE_OPENCL_SUPPORT       | HAVE_OPENCL          |
 | MACRO   | MAGICKCORE_HAVE__ALIGNED_MALLOC | HAVE__ALIGNED_MALLOC |
 | MACRO   | MAGICKCORE_WINDOWS_SUPPORT      | MSWINDOWS            |
+
+## <2022-04-18 周一>
+
+### 关于`clGetPlatformIDs()`在`windows`下的怪现象
+
+我在调查`R6025`的问题，调试发现`LoadOpenCLDevices()`函数中：
+
+``` c++
+number_platforms=0;
+if (openCL_library->clGetPlatformIDs(0,NULL,&number_platforms) != CL_SUCCESS)
+  return;
+```
+
+`number_platforms`的返回值在`IM`中为`1`，而在`GM`中却为`2`，同样的代码在同一台电脑上为什么返回的值不同呢？排除了编译选项的问题，查看了`clGetPlatformIDs()`的函数说明都没有找到问题，最后发现是`IM`是`vs2017`编译环境，而`GM`是`vs2022`编译环境，将它们都改用`vs2017`环境后调试状态下`number_platforms`的值都为`1`了。
+
+但是如果`number_platforms`为`1`的话，在本机电脑上实际上硬件加速是失败的，可是直接运行的话确实是走的硬件加速流程，难道代码中`clGetPlatformIDs()`在调试状态和非调试状态下的值不一样？添加日志输出后发现确实是这样，那么总结一下`clGetPlatformIDs()`的怪现象：
+
+1. `vs2017`，调试，`number_platforms`值为`1`。
+2. `vs2022`，调试，`number_platforms`值为`2`。
+3. `vs2017`，运行，`number_platforms`值为`2`。
