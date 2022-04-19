@@ -195,6 +195,12 @@ BOOL CIMDisplayApp::InitInstance()
 	return TRUE;
 }
 
+int CIMDisplayApp::ExitInstance()
+{
+  MagickLib::DestroyMagick();
+  return CWinApp::ExitInstance();
+}
+
 
 /////////////////////////////////////////////////////////////////////////////
 // CAboutDlg dialog used for App About
