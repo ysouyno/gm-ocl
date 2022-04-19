@@ -66,6 +66,8 @@
         - [`IM`和`GM`函数及宏对照](#im和gm函数及宏对照)
     - [<2022-04-18 周一>](#2022-04-18-周一)
         - [关于`clGetPlatformIDs()`在`windows`下的怪现象](#关于clgetplatformids在windows下的怪现象)
+    - [<2022-04-19 周二>](#2022-04-19-周二)
+        - [如何修复`R6025 pure virtual function call`问题](#如何修复r6025-pure-virtual-function-call问题)
 
 <!-- markdown-toc end -->
 
@@ -1926,3 +1928,21 @@ if (openCL_library->clGetPlatformIDs(0,NULL,&number_platforms) != CL_SUCCESS)
 1. `vs2017`，调试，`number_platforms`值为`1`。
 2. `vs2022`，调试，`number_platforms`值为`2`。
 3. `vs2017`，运行，`number_platforms`值为`2`。
+
+## <2022-04-19 周二>
+
+### 如何修复`R6025 pure virtual function call`问题
+
+运气好，上午修复了这个问题。
+
+过程中也经历了尝试`vs2010`编译，尝试更换电脑环境等，均没有找到原因，同时我也在怀疑会不会是`IMDisplay.exe`这个外部的测试程序问题引起的？毕竟`IM`和`GM`的这个`IMDisplay.exe`程序相差也是很大的。
+
+同时了解调用`OpenCLTerminus()`的所有地方，在`nt_base.c:DllMain()`的`DLL_PROCESS_DETACH`里面调用`DestroyMagick();`是不是不好？
+
+``` c++
+case DLL_PROCESS_DETACH:
+  DestroyMagick();
+  break;
+```
+
+另`IMDisplay.cpp`中只有`InitInstance()`，却没有`ExitInstance()`，是不是应该显示调用`MagickLib::DestroyMagick();`比交给系统处理`DLL_PROCESS_DETACH`更好呢？
