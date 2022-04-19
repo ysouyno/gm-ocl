@@ -1946,3 +1946,27 @@ case DLL_PROCESS_DETACH:
 ```
 
 另`IMDisplay.cpp`中只有`InitInstance()`，却没有`ExitInstance()`，是不是应该显示调用`MagickLib::DestroyMagick();`比交给系统处理`DLL_PROCESS_DETACH`更好呢？
+
+值得注意的是如果将`IM`的如下代码修改成这样：
+
+``` c++
+BOOL CIMDisplayApp::ExitInstance()
+{
+  // Magick::TerminateMagick();
+  return CWinApp::ExitInstance();
+}
+```
+
+同时保证`IM`的`magick-baseconfig.h`中的`ProvideDllMain`宏启用：
+
+``` c++
+/*
+  When building ImageMagick using DLLs, include a DllMain()
+  function which automatically invokes MagickCoreGenesis(NULL), and
+  MagickCoreTerminus() so that the user doesn't need to. This is disabled
+  by default.
+*/
+#define ProvideDllMain
+```
+
+则`IM`也同样会出现`R6025`的错误。
