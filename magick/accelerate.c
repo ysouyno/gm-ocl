@@ -782,4 +782,245 @@ MagickPrivate Image *AccelerateResizeImage(const Image *image,
     filter_type,filter_info,blur,exception);
   return(filteredImage);
 }
+
+static MagickBooleanType scaleFilter(MagickCLDevice device,
+  cl_command_queue queue,const Image *image,Image *filteredImage,
+  cl_mem imageBuffer,cl_uint matte_or_cmyk,cl_uint columns,cl_uint rows,
+  cl_mem scaledImageBuffer,cl_uint scaledColumns,cl_uint scaledRows,
+  ExceptionInfo *exception)
+{
+  cl_kernel
+    horizontalKernel;
+
+  cl_int
+    status;
+
+  const unsigned int
+    workgroupSize = 256;
+
+  float
+    resizeFilterScale,
+    scale;
+
+  int
+    numCachedPixels;
+
+  MagickBooleanType
+    outputReady;
+
+  size_t
+    gammaAccumulatorLocalMemorySize,
+    gsize[2],
+    i,
+    imageCacheLocalMemorySize,
+    pixelAccumulatorLocalMemorySize,
+    lsize[2],
+    totalLocalMemorySize,
+    weightAccumulatorLocalMemorySize;
+
+  unsigned int
+    chunkSize,
+    pixelPerWorkgroup;
+
+  horizontalKernel=NULL;
+  outputReady=MagickFalse;
+
+  scale=1.0/scale; // TODO(ocl)
+
+  if (scaledColumns < workgroupSize)
+  {
+    chunkSize=32;
+    pixelPerWorkgroup=32;
+  }
+  else
+  {
+    chunkSize=workgroupSize;
+    pixelPerWorkgroup=workgroupSize;
+  }
+
+DisableMSCWarning(4127)
+  while(1)
+RestoreMSCWarning
+  {
+    /* calculate the local memory size needed per workgroup */
+    numCachedPixels=(int) pixelPerWorkgroup;
+    imageCacheLocalMemorySize=numCachedPixels*sizeof(CLQuantum)*4;
+    totalLocalMemorySize=imageCacheLocalMemorySize;
+
+    /* local size for the pixel accumulator */
+    pixelAccumulatorLocalMemorySize=chunkSize*sizeof(cl_float4);
+    totalLocalMemorySize+=pixelAccumulatorLocalMemorySize;
+
+    /* local memory size for the weight accumulator */
+    weightAccumulatorLocalMemorySize=chunkSize*sizeof(float);
+    totalLocalMemorySize+=weightAccumulatorLocalMemorySize;
+
+    /* local memory size for the gamma accumulator */
+    gammaAccumulatorLocalMemorySize=chunkSize*sizeof(float);
+    totalLocalMemorySize+=gammaAccumulatorLocalMemorySize;
+
+    if (totalLocalMemorySize <= device->local_memory_size)
+      break;
+    else
+    {
+      pixelPerWorkgroup=pixelPerWorkgroup/2;
+      chunkSize=chunkSize/2;
+      if ((pixelPerWorkgroup == 0) || (chunkSize == 0))
+      {
+        /* quit, fallback to CPU */
+        goto cleanup;
+      }
+    }
+  }
+
+  horizontalKernel=AcquireOpenCLKernel(device,"ScaleFilter");
+  if (horizontalKernel == (cl_kernel) NULL)
+  {
+    (void) OpenCLThrowMagickException(device,exception,GetMagickModule(),
+      ResourceLimitWarning,"AcquireOpenCLKernel failed.", ".");
+    goto cleanup;
+  }
+
+  resizeFilterScale=scale;
+
+  i=0;
+  status =SetOpenCLKernelArg(horizontalKernel,i++,sizeof(cl_mem),(void*)&imageBuffer);
+  status|=SetOpenCLKernelArg(horizontalKernel,i++,sizeof(cl_uint),(void*)&matte_or_cmyk);
+  status|=SetOpenCLKernelArg(horizontalKernel,i++,sizeof(cl_uint),(void*)&columns);
+  status|=SetOpenCLKernelArg(horizontalKernel,i++,sizeof(cl_uint),(void*)&rows);
+  status|=SetOpenCLKernelArg(horizontalKernel,i++,sizeof(cl_mem),(void*)&scaledImageBuffer);
+  status|=SetOpenCLKernelArg(horizontalKernel,i++,sizeof(cl_uint),(void*)&scaledColumns);
+  status|=SetOpenCLKernelArg(horizontalKernel,i++,sizeof(cl_uint),(void*)&scaledRows);
+  status|=SetOpenCLKernelArg(horizontalKernel,i++,sizeof(float),(void*)&resizeFilterScale);
+  status|=SetOpenCLKernelArg(horizontalKernel,i++,imageCacheLocalMemorySize,NULL);
+  status|=SetOpenCLKernelArg(horizontalKernel,i++,sizeof(int),&numCachedPixels);
+  status|=SetOpenCLKernelArg(horizontalKernel,i++,sizeof(unsigned int),&pixelPerWorkgroup);
+  status|=SetOpenCLKernelArg(horizontalKernel,i++,sizeof(unsigned int),&chunkSize);
+  status|=SetOpenCLKernelArg(horizontalKernel,i++,pixelAccumulatorLocalMemorySize,NULL);
+  status|=SetOpenCLKernelArg(horizontalKernel,i++,weightAccumulatorLocalMemorySize,NULL);
+  status|=SetOpenCLKernelArg(horizontalKernel,i++,gammaAccumulatorLocalMemorySize,NULL);
+
+  if (status != CL_SUCCESS)
+  {
+    (void) OpenCLThrowMagickException(device,exception,GetMagickModule(),
+      ResourceLimitWarning,"SetOpenCLKernelArg failed.",".");
+    goto cleanup;
+  }
+
+  gsize[0]=(scaledColumns+pixelPerWorkgroup-1)/pixelPerWorkgroup*
+    workgroupSize;
+  gsize[1]=scaledRows;
+  lsize[0]=workgroupSize;
+  lsize[1]=1;
+  outputReady=EnqueueOpenCLKernel(queue,horizontalKernel,2,
+    (const size_t *) NULL,gsize,lsize,image,filteredImage,MagickFalse,
+    exception);
+
+cleanup:
+
+  if (horizontalKernel != (cl_kernel) NULL)
+    ReleaseOpenCLKernel(horizontalKernel);
+
+  return(outputReady);
+}
+
+static Image *ComputeScaleImage(const Image* image,MagickCLEnv clEnv,
+  const size_t scaledColumns,const size_t scaledRows,ExceptionInfo *exception)
+{
+  cl_command_queue
+    queue;
+
+  cl_mem
+    filteredImageBuffer,
+    imageBuffer;
+
+  cl_uint
+    matte_or_cmyk;
+
+  MagickBooleanType
+    outputReady;
+
+  MagickCLDevice
+    device;
+
+  MagickSizeType
+    length;
+
+  Image
+    *filteredImage;
+
+  size_t
+    i;
+
+  filteredImage=NULL;
+  imageBuffer=NULL;
+  filteredImageBuffer=NULL;
+  outputReady=MagickFalse;
+
+  device=RequestOpenCLDevice(clEnv);
+  queue=AcquireOpenCLCommandQueue(device);
+  filteredImage=CloneImage(image,scaledColumns,scaledRows,MagickTrue,
+    exception);
+  if (filteredImage == (Image *) NULL)
+    goto cleanup;
+  imageBuffer=GetAuthenticOpenCLBuffer(image,device,exception);
+  if (imageBuffer == (cl_mem) NULL)
+    goto cleanup;
+  filteredImageBuffer=GetAuthenticOpenCLBuffer(filteredImage,device,exception);
+  if (filteredImageBuffer == (cl_mem) NULL)
+    goto cleanup;
+
+  matte_or_cmyk=(image->matte || image->colorspace == CMYKColorspace)?1:0;
+
+  outputReady=scaleFilter(device,queue,image,filteredImage,
+    imageBuffer,matte_or_cmyk,(cl_uint) image->columns,
+    (cl_uint) image->rows,filteredImageBuffer,(cl_uint) scaledColumns,
+    (cl_uint) scaledRows,exception);
+  if (outputReady == MagickFalse)
+    goto cleanup;
+
+cleanup:
+
+  if (imageBuffer != (cl_mem) NULL)
+    ReleaseOpenCLMemObject(imageBuffer);
+  if (filteredImageBuffer != (cl_mem) NULL)
+    ReleaseOpenCLMemObject(filteredImageBuffer);
+  if (queue != (cl_command_queue) NULL)
+    ReleaseOpenCLCommandQueue(device,queue);
+  if (device != (MagickCLDevice) NULL)
+    ReleaseOpenCLDevice(device);
+  if ((outputReady == MagickFalse) && (filteredImage != (Image *) NULL))
+  {
+    DestroyImage(filteredImage);
+    filteredImage=(Image *) NULL;
+  }
+
+  return(filteredImage);
+}
+
+MagickPrivate Image *AccelerateScaleImage(const Image *image,
+  const size_t resizedColumns,const size_t resizedRows,
+  ExceptionInfo *exception)
+{
+  Image
+    *filteredImage;
+
+  MagickCLEnv
+    clEnv;
+
+  assert(image != NULL);
+  assert(exception != (ExceptionInfo *) NULL);
+
+  if (checkAccelerateCondition(image) == MagickFalse)
+    return((Image *) NULL);
+
+  clEnv=getOpenCLEnvironment(exception);
+  if (clEnv == (MagickCLEnv) NULL)
+    return((Image *) NULL);
+
+  filteredImage=ComputeScaleImage(image,clEnv,resizedColumns,resizedRows,
+    exception);
+  return(filteredImage);
+}
+
 #endif /* HAVE_OPENCL */

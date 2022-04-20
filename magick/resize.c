@@ -1755,6 +1755,15 @@ MagickExport Image *ScaleImage(const Image *image,const unsigned long columns,
                           MagickMsg(OptionError,NonzeroWidthAndHeightRequired));
       return((Image *) NULL);
     }
+
+#if defined(HAVE_OPENCL)
+  scale_image=AccelerateScaleImage(image,columns,rows,exception);
+  if (scale_image != (Image *)NULL) {
+    return (scale_image);
+  }
+#endif
+
+  LogMagickEvent(AccelerateEvent,GetMagickModule(),"AccelerateScaleImage null");
   if ((columns == image->columns) && (rows == image->rows))
     scale_image=CloneImage(image,0,0,True,exception);
   else
@@ -2225,7 +2234,7 @@ MagickExport Image *ZoomImage(const Image *image,const unsigned long columns,
   assert(exception != (ExceptionInfo *) NULL);
   assert(exception->signature == MagickSignature);
 
-  zoom_image=ResizeImage(image,columns,rows,image->filter,image->blur,
+  zoom_image=ScaleImage(image,columns,rows,
                          exception);
   return(zoom_image);
 }
