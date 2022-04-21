@@ -3527,10 +3527,102 @@ OPENCL_ENDIF()
     const int x=get_global_id(0);
     const int y=get_global_id(1);
     const unsigned int columns=get_global_size(0);
+    int cy=y;
 
-    float4 pixel=ReadAllChannels(inputImage,4,columns,x,y);
+    float4 pixel=ReadAllChannels(inputImage,4,columns,x,cy);
 
-    WriteAllChannels(inputImage,4,columns,x,y,pixel);
+    // float4 x_vector=0.0f;
+    // float4 y_vector=0.0f;
+    // float y_volumes=0.0f;
+    // float4 pixel_tmp=0.0f;
+    // float y_span=1.0f;
+    // float y_scale=(float)filteredRows/inputRows;
+    // int number_rows=1;
+    // unsigned int next_row=0;
+    // float factor=0.0f;
+
+    // unsigned int next_column=0;
+    // float x_span=1.0f;
+    // float x_scale=0.0f;
+    // float x_volume=0.0f;
+    // float4 pixel_res=0.0f;
+
+    // if (inputRows == filteredRows) {
+    //   x_vector=pixel;
+    // }
+    // else {
+    //   while (y_scale < y_span) {
+    //     if (next_row &&(number_rows < inputRows)) {
+    //       pixel=ReadAllChannels(inputImage,4,columns,x,cy++);
+    //       x_vector=pixel;
+    //       number_rows++;
+    //     }
+    //     y_volumes+=y_scale;
+    //     y_vector+=y_scale*x_vector;
+    //     y_span-=y_scale;
+    //     y_scale=(float)filteredRows/inputRows;
+    //     next_row=1;
+    //   }
+    //   if (next_row && (number_rows < inputRows)) {
+    //     pixel=ReadAllChannels(inputImage,4,columns,x,cy++);
+    //     x_vector=pixel;
+    //     number_rows++;
+    //     next_row=0;
+    //   }
+    //   // barrier?
+    //   y_volumes+=y_span;
+    //   pixel_tmp=y_vector+y_span*x_vector;
+    //   if (y_volumes > 0.0 && y_volumes < 1.0) {
+    //     factor=1/y_volumes;
+    //     pixel_tmp*=factor;
+    //   }
+    //   x_vector=pixel_tmp;
+    // }
+    // if (inputColumns == filteredColumns) {
+    //   pixel_res=x_vector;
+    // }
+    // else {
+    //   x_scale=filteredColumns/inputColumns;
+    //   while (x_scale >= x_span) {
+    //     if (next_column) {
+    //       if (x_volume > 0.0 && x_volume < 1.0) {
+    //         factor=1/x_volume;
+    //         pixel_res*=factor;
+    //       }
+    //       x_volume=0.0;
+    //     }
+    //     x_volume+=x_span;
+    //     pixel_tmp+=x_span*x_vector;
+    //     pixel_res=pixel_tmp;
+    //     x_scale-=x_span;
+    //     x_span=1.0;
+    //     next_column=1;
+    //   }
+    //   if (x_scale > 0.0) {
+    //     if (next_column) {
+    //       if (x_volume < 0.0 && x_volume < 1.0) {
+    //         factor=1/x_volume;
+    //         pixel_res*=factor;
+    //       }
+    //       x_volume=0.0;
+    //       next_column=0;
+    //     }
+    //     x_volume+=x_scale;
+    //     pixel_tmp+=x_scale*x_vector;
+    //     x_span-=x_scale;
+    //   }
+    //   if (x_span > 0.0) {
+    //     // s--; // TODO(ocl)
+    //     x_volume+=x_span;
+    //     pixel_tmp+=x_span*x_vector;
+    //   }
+    //   if (!next_column/* && TODO(ocl)*/) {
+    //     pixel_res=pixel_tmp;
+    //   }
+    // }
+    pixel/=4.5;
+    WriteAllChannels(filteredImage,4,filteredColumns,
+      x*filteredColumns/inputColumns,y*filteredRows/inputRows,pixel);
   }
   )
 

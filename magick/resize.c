@@ -1763,6 +1763,7 @@ MagickExport Image *ScaleImage(const Image *image,const unsigned long columns,
   }
 #endif
 
+  // TODO(ocl)
   LogMagickEvent(AccelerateEvent,GetMagickModule(),"AccelerateScaleImage null");
   if ((columns == image->columns) && (rows == image->rows))
     scale_image=CloneImage(image,0,0,True,exception);
