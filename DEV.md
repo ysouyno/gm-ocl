@@ -68,6 +68,9 @@
         - [关于`clGetPlatformIDs()`在`windows`下的怪现象](#关于clgetplatformids在windows下的怪现象)
     - [<2022-04-19 周二>](#2022-04-19-周二)
         - [如何修复`R6025 pure virtual function call`问题](#如何修复r6025-pure-virtual-function-call问题)
+    - [<2022-04-21 周四>](#2022-04-21-周四)
+        - [如何写`ScaleImage()`的硬件加速函数（一）](#如何写scaleimage的硬件加速函数一)
+        - [如何写`ScaleImage()`的硬件加速函数（二）](#如何写scaleimage的硬件加速函数二)
 
 <!-- markdown-toc end -->
 
@@ -1970,3 +1973,112 @@ BOOL CIMDisplayApp::ExitInstance()
 ```
 
 则`IM`也同样会出现`R6025`的错误。
+
+## <2022-04-21 周四>
+
+### 如何写`ScaleImage()`的硬件加速函数（一）
+
+分析`ScaleImage()`函数及考虑参数如何传递：
+
+1. 函数中最大的循环是按`Y`垂直方向的，这样每次内循环以`X`水平方向进行
+2. 最大的循环中以两个`if-else`分支为主，分别比较目标宽高是否等于原始宽高，所以可以考虑以两个无符号整形代表（因为`kernel`函数不支持布尔类型，`1`表示相等，`0`表示不等）或者也可以直接传入原始宽高和目标高宽，在`kernel`函数中比较是否相等
+3. 选择传入目标宽高和原始宽高比较好，这样`x_scale`和`y_scale`也可以在`kernel`函数中计算
+4. 该函数中有申请可变长的动态数组，按照原始图片的宽度为长度申请堆内存。参考`ResizeImage()`和`AccelerateResizeImage()`函数，它们没有用到可变长动态数组，在`kernel`函数中申请动态数组明显不合适，因为`opencl`不支持动态数组
+5. 继续参考`ResizeImage()`和`AccelerateResizeImage()`函数，用到了三个图片内存传入`kernel`函数，分别是`imageBuffer`，`tempImageBuffer`和`filteredImageBuffer`，原以为参数传递错了，为什么在`resizeHorizontalFilter()`和`resizeVerticalFilter()`函数中只有一个函数用到了`filteredImageBuffer`变量？
+6. 仔细分析`resizeHorizontalFilter()`和`resizeVerticalFilter()`函数发现它们的第五个参数是输入参数，第九个参数是输出参数，`tempImageBuffer`是临时内存，做为第一个函数的输出参数和第二个函数的输入参数，代码如下：
+
+``` c++
+outputReady=resizeHorizontalFilter(device,queue,image,filteredImage,
+  imageBuffer,matte_or_cmyk,(cl_uint) image->columns,
+  (cl_uint) image->rows,tempImageBuffer,(cl_uint) resizedColumns,
+  (cl_uint) image->rows,filter_type,filter_info,blur,
+  cubicCoefficientsBuffer,xFactor,exception);
+if (outputReady == MagickFalse)
+  goto cleanup;
+
+outputReady=resizeVerticalFilter(device,queue,image,filteredImage,
+  tempImageBuffer,matte_or_cmyk,(cl_uint) resizedColumns,
+  (cl_uint) image->rows,filteredImageBuffer,(cl_uint) resizedColumns,
+  (cl_uint) resizedRows,filter_type,filter_info,blur,
+  cubicCoefficientsBuffer,yFactor,exception);
+if (outputReady == MagickFalse)
+  goto cleanup;
+```
+
+7. 那似乎`ScaleImage()`里用不到这个临时内存，因为函数结构有区别
+8. 以原图宽高为长度的动态数组是不是可以在调用`kernel`函数之前申请好，用于临时内存？
+
+### 如何写`ScaleImage()`的硬件加速函数（二）
+
+昨天搞了一天也没有搞出来`kernel`函数怎么写，还得仔细分析一下`ScaleImage()`函数流程：
+
+1. 从`GM`的`ScaleImage()`入手，它比`IM`好懂
+2. 大循环的第一个`if-else`分支处理`Y`方向，即垂直方向，它用到两个动态数组`x_vector`和`y_vector`，它们的长度相等，都是原图的宽度，`y_scale`小于`1`是缩小，`y_scale`大于`1`是放大，不管是放大还是缩小，都会先读一行原图像素放到`x_vector`中
+3. 如果是缩小的话，各像素乘以`y_scale`的结果存放到`y_vector`中，可能会继续读取下一行原图进行累积计算
+4. 如果是放大的话，会将`y_vector+y_span*x_vector`的结果放到一个临时变量`pixel`中，之所以要放到`pixel`中是因为要处理计算结果大于`255.0`的情况，且可能`y_vector`在这里首次被使用，所以它申请内存时必须初始始化为`0`，所以它用的是`MagickAllocateClearedArray()`函数
+
+``` c++
+y_vector=MagickAllocateClearedArray(DoublePixelPacket *,
+                                    image->columns,sizeof(DoublePixelPacket));
+```
+
+5. `pixel`的结果是存到`s`中，而`s=scanline;`，且`scanline=x_vector;`，所以到这里`x_vector`存放的是`Y`方向的处理结果
+6. 然后这里到第二个`if-else`分支，即处理`X`方向，代码同第一个`if-else`分支大同小异，但要注意`else`，它有一个稍大的循环。最终结果存在`t`即`scale_scanline`中
+7. `scale_scanline`是以一个以目标宽度为长度的动态数组
+
+我尝试写的`kernel`函数模仿了`ScaleImage()`的很多代码，实际上不能工作，以试着重新理解`opencl`的方式，理解`work-group`和`work-item`，仅有的收获在：
+
+``` c++
+STRINGIFY(
+__kernel // __attribute__((reqd_work_group_size(256, 1, 1)))
+  void ScaleFilter(const __global CLQuantum *inputImage, const unsigned int matte_or_cmyk,
+    const unsigned int inputColumns, const unsigned int inputRows, __global CLQuantum *filteredImage,
+    const unsigned int filteredColumns, const unsigned int filteredRows,
+    const float resizeFilterScale,
+    __local CLQuantum *inputImageCache, const int numCachedPixels,
+    const unsigned int pixelPerWorkgroup, const unsigned int pixelChunkSize,
+    __local float4 *outputPixelCache, __local float *densityCache, __local float *gammaCache)
+{
+  const int x=get_global_id(0);
+  const int y=get_global_id(1);
+  const unsigned int columns=get_global_size(0);
+  int cy=y;
+
+  float4 pixel=ReadAllChannels(inputImage,4,columns,x,cy);
+
+  pixel/=4.5;
+  WriteAllChannels(filteredImage,4,filteredColumns,
+    x*filteredColumns/inputColumns,y*filteredRows/inputRows,pixel);
+}
+)
+```
+
+似乎生成的图片没有变形，我加了`pixel/=4.5;`这行代码是为了调试方便，它的效果是使图片变暗。仅此简单的代码也能完成缩放功能（备注：缩小没问题，放大不行），但是`WriteAllChannels()`的`x`和`y`坐标要从`work-item`的视角看`work-group`，目前只能以`x*filteredColumns/inputColumns`和`y*filteredRows/inputRows`来代替，以验证我对`work-group`和`work-item`的理解，从上面的代码看，我似乎理解了一些。
+
+参照下面的`IM`代码理解：
+
+``` c++
+__kernel void Contrast(__global CLQuantum *image,
+  const unsigned int number_channels,const int sign)
+{
+  const int x=get_global_id(0);
+  const int y=get_global_id(1);
+  const unsigned int columns=get_global_size(0);
+
+  float4 pixel=ReadAllChannels(image,number_channels,columns,x,y);
+  if (number_channels < 3)
+    pixel.y=pixel.z=pixel.x;
+
+  pixel=ConvertRGBToHSB(pixel);
+  float brightness=pixel.z;
+  brightness+=0.5f*sign*(0.5f*(sinpi(brightness-0.5f)+1.0f)-brightness);
+  brightness=clamp(brightness,0.0f,1.0f);
+  pixel.z=brightness;
+  pixel=ConvertHSBToRGB(pixel);
+
+  WriteAllChannels(image,number_channels,columns,x,y,pixel);
+}
+)
+```
+
+此外我觉得没有必要学`AccelerateResizeImage()`函数去增加`filteredImageBuffer`变量，可以学`IM`的`AccelerateContrastImage()`函数，在`ComputeContrastImage()`中直接调用`kernel`函数，这样可以少一层函数调用。
