@@ -2234,7 +2234,8 @@ MagickExport Image *ZoomImage(const Image *image,const unsigned long columns,
   assert(exception != (ExceptionInfo *) NULL);
   assert(exception->signature == MagickSignature);
 
-  zoom_image=ScaleImage(image,columns,rows,
-                         exception);
+  // zoom_image=ResizeImage(image,columns,rows,image->filter,image->blur,
+  //                        exception);
+  zoom_image=ScaleImage(image,columns,rows,exception); // TODO(ocl)
   return(zoom_image);
 }
