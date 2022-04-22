@@ -2124,3 +2124,4 @@ MagickPrivate Image *AccelerateScaleImage(const Image *image,
 
 4. 重启电脑似乎不能校正这种问题，但第二天开机这个问题就没有了，难道我的`ScaleFilter()`函数让`CPU`或者`GPU`内部错乱了？
 5. 没添加额外调试输出前，没有找到任何异常日志
+6. 忘说了一个关键问题，这两天电脑已经发现死机两次，包括今天早上这次，刚输入完密码回车后就死机
