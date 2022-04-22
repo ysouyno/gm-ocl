@@ -71,6 +71,8 @@
     - [<2022-04-21 周四>](#2022-04-21-周四)
         - [如何写`ScaleImage()`的硬件加速函数（一）](#如何写scaleimage的硬件加速函数一)
         - [如何写`ScaleImage()`的硬件加速函数（二）](#如何写scaleimage的硬件加速函数二)
+    - [<2022-04-22 Fri>](#2022-04-22-fri)
+        - [如何写`ScaleImage()`的硬件加速函数（三）](#如何写scaleimage的硬件加速函数三)
 
 <!-- markdown-toc end -->
 
@@ -2082,3 +2084,43 @@ __kernel void Contrast(__global CLQuantum *image,
 ```
 
 此外我觉得没有必要学`AccelerateResizeImage()`函数去增加`filteredImageBuffer`变量，可以学`IM`的`AccelerateContrastImage()`函数，在`ComputeContrastImage()`中直接调用`kernel`函数，这样可以少一层函数调用。
+
+## <2022-04-22 Fri>
+
+### 如何写`ScaleImage()`的硬件加速函数（三）
+
+在“[如何写`ScaleImage()`的硬件加速函数（二）](#如何写scaleimage的硬件加速函数二)”中介绍的`kernel`函数的写法可能会产生如下现象：
+
+1. `ScaleFilter()`不是总能被成功调用
+2. 每次修改过`ScaleFilter()`后，有时在`~.cache/GraphicsMagick`目录中不会生成新的`.bin`文件
+3. 这种情况下，调试发现在`getOpenCLEnvironment(exception);`处就失败返回
+
+``` c++
+MagickPrivate Image *AccelerateScaleImage(const Image *image,
+  const size_t scaledColumns,const size_t scaledRows,
+  ExceptionInfo *exception)
+{
+  Image
+    *filteredImage;
+
+  MagickCLEnv
+    clEnv;
+
+  assert(image != NULL);
+  assert(exception != (ExceptionInfo *) NULL);
+
+  if (checkAccelerateCondition(image) == MagickFalse)
+    return((Image *) NULL);
+
+  clEnv=getOpenCLEnvironment(exception);
+  if (clEnv == (MagickCLEnv) NULL)
+    return((Image *) NULL);
+
+  filteredImage=ComputeScaleImage(image,clEnv,scaledColumns,scaledRows,
+    exception);
+  return(filteredImage);
+}
+```
+
+4. 重启电脑似乎不能校正这种问题，但第二天开机这个问题就没有了，难道我的`ScaleFilter()`函数让`CPU`或者`GPU`内部错乱了？
+5. 没添加额外调试输出前，没有找到任何异常日志
