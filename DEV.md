@@ -73,6 +73,8 @@
         - [如何写`ScaleImage()`的硬件加速函数（二）](#如何写scaleimage的硬件加速函数二)
     - [<2022-04-22 Fri>](#2022-04-22-fri)
         - [如何写`ScaleImage()`的硬件加速函数（三）](#如何写scaleimage的硬件加速函数三)
+    - [<2022-04-26 周二>](#2022-04-26-周二)
+        - [如何写`ScaleImage()`的硬件加速函数（四）](#如何写scaleimage的硬件加速函数四)
 
 <!-- markdown-toc end -->
 
@@ -2125,3 +2127,418 @@ MagickPrivate Image *AccelerateScaleImage(const Image *image,
 4. 重启电脑似乎不能校正这种问题，但第二天开机这个问题就没有了，难道我的`ScaleFilter()`函数让`CPU`或者`GPU`内部错乱了？
 5. 没添加额外调试输出前，没有找到任何异常日志
 6. 忘说了一个关键问题，这两天电脑已经发现死机两次，包括今天早上这次，刚输入完密码回车后就死机
+
+## <2022-04-26 周二>
+
+### 如何写`ScaleImage()`的硬件加速函数（四）
+
+经过这两天的尝试，越来越对`ScaleImage()`用硬件加速实现这件事感到怀疑，因为似乎没有发现这个函数的硬件加速版本能带来很好的性能，当然我这个`OpenCL`新手写的代码连我自己也不敢恭维，这也是一方面的原因，甚至可能占比很高。
+
+正如前面日志所说的能参考的代码只有`ResizeHorizontalFilter()`和`ResizeVerticalFilter()`，但是这要修改`accelerate.c:scaleFilter()`函数，在调用`EnqueueOpenCLKernel()`的地方要传入`lsize`参数，而不是现在的`NULL`，且可能要增加：
+
+``` c++
+// for ResizeHorizontalFilter()
+__kernel __attribute__((reqd_work_group_size(256, 1, 1)))
+```
+
+或者：
+
+``` c++
+// for ResizeVerticalFilter()
+__kernel __attribute__((reqd_work_group_size(1, 256, 1)))
+```
+
+否则程序将卡死在`ScaleImage()`的硬件加速函数`ScaleFilter()`中。
+
+此外在“[如何写`ScaleImage()`的硬件加速函数（二）](#如何写scaleimage的硬件加速函数二)”中`ScaleFilter()`的简单实现中，对于缩小操作可以达到效果，但放大操作的图片像个筛子，所以我这个基础上我“完善”了一下，缩放后的效果还能勉强看出原图的轮廓，虽然效果不好但至少不是筛子了，尝试的代码如下：
+
+``` c++
+// 大方块
+{
+  const int x = get_global_id(0);
+  const int y = get_global_id(1);
+  const unsigned int columns = get_global_size(0);
+
+  float4 pixel = ReadAllChannels(inputImage, 4, columns, x, y);
+  int num_x = get_global_size(0) / get_local_size(0);
+  int num_y = get_global_size(1) / get_local_size(1);
+
+  int dst_local_w = (filteredColumns + num_x - 1) / num_x;
+  int dst_local_h = (filteredRows + num_y - 1) / num_y;
+
+  for (int j = 0; j < dst_local_h; ++j)
+    for (int i = 0; i < dst_local_w; ++i) {
+      // pixel_res/=4.5;
+      int filtered_x = x / get_local_size(0) * dst_local_w + i;
+      int filtered_y = y / get_local_size(1) * dst_local_h + j;
+      WriteAllChannels(filteredImage, 4, filteredColumns, filtered_x, filtered_y, pixel);
+    }
+}
+```
+
+或者可以用它的“升级”版本：
+
+``` c++
+// 比大方块好点儿
+{
+  const int x = get_global_id(0);
+  const int y = get_global_id(1);
+  const unsigned int columns = get_global_size(0);
+  int cx = x;
+  int cy = y;
+
+  float4 pixel = ReadAllChannels(inputImage, 4, columns, cx, cy);
+  int num_x = get_global_size(0) / get_local_size(0);
+  int num_y = get_global_size(1) / get_local_size(1);
+
+  int dst_local_w = (filteredColumns + num_x - 1) / num_x;
+  int dst_local_h = (filteredRows + num_y - 1) / num_y;
+
+  for (int j = 0; j < dst_local_h; ++j) {
+    int filtered_y = y / get_local_size(1) * dst_local_h + j;
+    if (fabs((float)filtered_y / filteredRows - (float)y / inputRows) < 0.1) {
+      cy++;
+    }
+
+    for (int i = 0; i < dst_local_w; ++i) {
+      int filtered_x = x / get_local_size(0) * dst_local_w + i;
+
+      if (fabs((float)filtered_x / filteredColumns - (float)x / inputColumns) < 0.1) {
+        pixel = ReadAllChannels(inputImage, 4, columns, cx++, cy);
+      }
+      WriteAllChannels(filteredImage, 4, filteredColumns, filtered_x, filtered_y, pixel);
+    }
+  }
+}
+```
+
+在我心里，对参考`ResizeHorizontalFilter()`和`ResizeVerticalFilter()`来实现`ScaleFilter()`有一种执着，花了许多时间，也总结了遇到的一些坑：
+
+1. 如果不修改`EnqueueOpenCLKernel()`函数的调用方式的话，可能在某个时刻电脑就死机了
+2. 只使用`ResizeHorizontalFilter()`和`ResizeVerticalFilter()`其中一个函数的代码来改写，似乎达不到效果，最好的效果是水平方向已缩小，垂直方向只显示了原图的上半部
+3. 好像我是这么修改的可以达到上面第二点提到的最好效果：
+
+``` c++
+event_t e = async_work_group_copy(inputImageCache, inputImage + pos, num_elements * 2, 0);
+wait_group_events(1, &e);
+
+for (unsigned int i = startStep; i < stopStep * 2; i++, cacheIndex++)
+```
+
+如果要参考其中之一的话，估计渐渐改着改着会发现我需要用到两个函数，会是`ScaleHorizontalFilter()`和`ScaleVerticalFilter()`，然后到最后会是一版不一样的`ResizeImage()`的硬件加速版本，这样的话，意义在哪里？
+
+所以我昨天下午又换回了自己来写，目前放大缩小操作可以实现，但效果差，会像好多小方格拼成的图片那样，且缩放速度相比原函数慢好多。另我知道的还有一个小问题，即缩小后的图片宽度比显示部分要宽，代码先贴在这里，因为有新任务要处理。
+
+修改了`accelerate.c`的`scaleFilter()`函数：
+
+``` c++
+static MagickBooleanType scaleFilter(MagickCLDevice device,
+  cl_command_queue queue,const Image *image,Image *filteredImage,
+  cl_mem imageBuffer,cl_uint matte_or_cmyk,cl_uint columns,cl_uint rows,
+  cl_mem scaledImageBuffer,cl_uint scaledColumns,cl_uint scaledRows,
+  ExceptionInfo *exception)
+{
+  cl_kernel
+    scaleKernel;
+
+  cl_int
+    status;
+
+  const unsigned int
+    workgroupSize = 256;
+
+  float
+    scale=1.0;
+
+  int
+    numCachedPixels;
+
+  MagickBooleanType
+    outputReady;
+
+  size_t
+    gsize[2],
+    i,
+    imageCacheLocalMemorySize,
+    lsize[2],
+    totalLocalMemorySize,
+    x_vector,
+    y_vector,
+    y_volumes;
+
+  unsigned int
+    chunkSize,
+    pixelPerWorkgroup;
+
+  scaleKernel=NULL;
+  outputReady=MagickFalse;
+
+  scale=1.0/scale; // TODO(ocl)
+
+  if (scaledColumns < workgroupSize)
+  {
+    chunkSize=32;
+    pixelPerWorkgroup=32;
+  }
+  else
+  {
+    chunkSize=workgroupSize;
+    pixelPerWorkgroup=workgroupSize;
+  }
+
+DisableMSCWarning(4127)
+  while(1)
+RestoreMSCWarning
+  {
+    /* calculate the local memory size needed per workgroup */
+    numCachedPixels=(int) pixelPerWorkgroup;
+    imageCacheLocalMemorySize=numCachedPixels*sizeof(CLQuantum)*4;
+    totalLocalMemorySize=imageCacheLocalMemorySize;
+
+    /* local size for the pixel accumulator */
+    x_vector=chunkSize*sizeof(cl_float4);
+    totalLocalMemorySize+=x_vector;
+
+    /* local memory size for the weight accumulator */
+    y_vector=chunkSize*sizeof(cl_float4);
+    totalLocalMemorySize+=y_vector;
+
+    /* local memory size for the gamma accumulator */
+    y_volumes =chunkSize*sizeof(float);
+    totalLocalMemorySize+=y_volumes;
+
+    if (totalLocalMemorySize <= device->local_memory_size)
+      break;
+    else
+    {
+      pixelPerWorkgroup=pixelPerWorkgroup/2;
+      chunkSize=chunkSize/2;
+      if ((pixelPerWorkgroup == 0) || (chunkSize == 0))
+      {
+        /* quit, fallback to CPU */
+        goto cleanup;
+      }
+    }
+  }
+
+  scaleKernel=AcquireOpenCLKernel(device,"ScaleFilter");
+  if (scaleKernel == (cl_kernel) NULL)
+  {
+    (void) OpenCLThrowMagickException(device,exception,GetMagickModule(),
+      ResourceLimitWarning,"AcquireOpenCLKernel failed.", ".");
+    goto cleanup;
+  }
+
+  i=0;
+  status =SetOpenCLKernelArg(scaleKernel,i++,sizeof(cl_mem),(void*)&imageBuffer);
+  status|=SetOpenCLKernelArg(scaleKernel,i++,sizeof(cl_uint),(void*)&matte_or_cmyk);
+  status|=SetOpenCLKernelArg(scaleKernel,i++,sizeof(cl_uint),(void*)&columns);
+  status|=SetOpenCLKernelArg(scaleKernel,i++,sizeof(cl_uint),(void*)&rows);
+  status|=SetOpenCLKernelArg(scaleKernel,i++,sizeof(cl_mem),(void*)&scaledImageBuffer);
+  status|=SetOpenCLKernelArg(scaleKernel,i++,sizeof(cl_uint),(void*)&scaledColumns);
+  status|=SetOpenCLKernelArg(scaleKernel,i++,sizeof(cl_uint),(void*)&scaledRows);
+  status|=SetOpenCLKernelArg(scaleKernel,i++,sizeof(float),(void*)&scale);
+  status|=SetOpenCLKernelArg(scaleKernel,i++,imageCacheLocalMemorySize,NULL);
+  status|=SetOpenCLKernelArg(scaleKernel,i++,sizeof(int),&numCachedPixels);
+  status|=SetOpenCLKernelArg(scaleKernel,i++,sizeof(unsigned int),&pixelPerWorkgroup);
+  status|=SetOpenCLKernelArg(scaleKernel,i++,sizeof(unsigned int),&chunkSize);
+  status|=SetOpenCLKernelArg(scaleKernel,i++,x_vector,NULL);
+  status|=SetOpenCLKernelArg(scaleKernel,i++,y_vector,NULL);
+  status|=SetOpenCLKernelArg(scaleKernel,i++,y_volumes,NULL);
+
+  if (status != CL_SUCCESS)
+  {
+    (void) OpenCLThrowMagickException(device,exception,GetMagickModule(),
+      ResourceLimitWarning,"SetOpenCLKernelArg failed.",".");
+    goto cleanup;
+  }
+
+  gsize[0]=image->columns;
+  gsize[1]=image->rows;
+  outputReady=EnqueueOpenCLKernel(queue,scaleKernel,2,
+    (const size_t *) NULL,gsize,(Image *)NULL,image,filteredImage,MagickFalse,
+    exception);
+
+cleanup:
+
+  if (scaleKernel != (cl_kernel) NULL)
+    ReleaseOpenCLKernel(scaleKernel);
+
+  return(outputReady);
+}
+```
+
+和`accelerate-kernels-private.h`的`ScaleFilter()`函数：
+
+``` c++
+STRINGIFY(
+__kernel // __attribute__((reqd_work_group_size(256, 1, 1)))
+  void ScaleFilter(const __global CLQuantum *inputImage, const unsigned int matte_or_cmyk,
+    const unsigned int inputColumns, const unsigned int inputRows, __global CLQuantum *filteredImage,
+    const unsigned int filteredColumns, const unsigned int filteredRows,
+    const float resizeFilterScale,
+    __local CLQuantum *inputImageCache, const int numCachedPixels,
+    const unsigned int pixelPerWorkgroup, const unsigned int pixelChunkSize,
+    __local float4 *x_vector, __local float4 *y_vector, __local float *y_volumes)
+{
+  if (get_local_size(0) > pixelChunkSize)
+    return;
+
+  const int x = get_global_id(0);
+  const int y = get_global_id(1);
+  const unsigned int columns = get_global_size(0);
+  int cx = x;
+  int cy = y;
+
+  for (int i = 0; i < pixelChunkSize; ++i) {
+    x_vector[i] = (float4)0.0;
+    y_vector[i] = (float4)0.0;
+    y_volumes[i] = 0.0;
+  }
+
+  float4 pixel1 = ReadAllChannels(inputImage, 4, columns, x, y);
+  int num_x = get_global_size(0) / get_local_size(0);
+  int num_y = get_global_size(1) / get_local_size(1);
+
+  int dst_local_w = (filteredColumns + num_x - 1) / num_x;
+  int dst_local_h = (filteredRows + num_y - 1) / num_y;
+
+  int startx = x;
+  int stopx = MagickMin(startx + pixelChunkSize, inputColumns);
+  float y_scale = (float)filteredRows / inputRows;
+  float y_span = 1.0;
+  int next_row = 1;
+  __local float4* s = x_vector;
+  float4 pixel = 0.0;
+  float factor = 0.0;
+  int next_col = 0;
+  float x_scale = 0.0;
+  float x_span = 1.0;
+  float x_volume = 0.0;
+  float4 result[256];
+  float4* t = result;
+
+  for (int j = 0; j < dst_local_h; ++j) {
+    if (filteredRows == inputRows) {
+      for (int i = 0; i < get_local_size(0); ++i) {
+        x_vector[i] = ReadAllChannels(inputImage, 4, columns, x + i, cy);
+      }
+    }
+    else {
+      while (y_scale < y_span) {
+        if (next_row) {
+          for (int i = 0; i < get_local_size(0); ++i) {
+            x_vector[i] = ReadAllChannels(inputImage, 4, columns, x + i, cy);
+          }
+          cy++;
+        }
+        for (int i = 0; i < get_local_size(0); ++i) {
+          if (x_vector[i].w < 255.0)
+            y_volumes[i] += y_scale;
+          y_vector[i] += y_scale * x_vector[i];
+        }
+        y_span -= y_scale;
+        y_scale = (float)filteredRows / inputRows;
+        next_row = 1;
+      }
+      if (next_row) {
+        for (int i = 0; i < get_local_size(0); ++i) {
+          x_vector[i] = ReadAllChannels(inputImage, 4, columns, x + i, cy);
+        }
+        cy++;
+        next_row = 0;
+      }
+      for (int i = 0; i < get_local_size(0); ++i) {
+        if (x_vector[i].w < 255.0)
+          y_volumes[x] += y_span;
+        pixel = y_vector[i] + y_span * x_vector[i];
+        if (y_volumes[i] > 0.0 && y_volumes[i] < 1.0) {
+          factor = 1 / y_volumes[i];
+          pixel *= factor;
+        }
+        s->x = pixel.x > 255.0 ? 255.0 : pixel.x;
+        s->y = pixel.y > 255.0 ? 255.0 : pixel.y;
+        s->z = pixel.z > 255.0 ? 255.0 : pixel.z;
+        s->w = pixel.w > 255.0 ? 255.0 : pixel.w;
+        s++;
+        y_vector[i] = 0.0;
+        y_volumes[i] = 0.0;
+      }
+      y_scale -= y_span;
+      if (y_scale < 0) {
+        y_scale = (float)filteredRows / inputRows;
+        next_row = 1;
+      }
+      y_span = 1.0;
+    }
+    if (filteredColumns == inputColumns) {
+      //
+    }
+    else {
+      pixel = 0.0;
+      s = x_vector;
+      for (int i = 0; i < get_local_size(0); ++i) {
+        x_scale = (float)filteredColumns / inputColumns;
+        while (x_scale >= x_span) {
+          if (next_col) {
+            if (x_volume < 0.0 && x_volume < 1.0) {
+              factor = 1 / x_volume;
+              *t *= factor;
+            }
+            x_volume = 0.0;
+            pixel = 0.0;
+            t++;
+          }
+          if (s->w < 255.0)
+            x_volume += x_span;
+          pixel += x_span * *s;
+          t->x = pixel.x > 255.0 ? 255.0 : pixel.x;
+          t->y = pixel.y > 255.0 ? 255.0 : pixel.y;
+          t->z = pixel.z > 255.0 ? 255.0 : pixel.z;
+          t->w = pixel.w > 255.0 ? 255.0 : pixel.w;
+          x_scale -= x_span;
+          x_span = 1.0;
+          next_col = 1;
+        }
+        if (x_scale > 0.0) {
+          if (next_col) {
+            if (x_volume > 0.0 && x_volume < 1.0) {
+              factor = 1 / x_volume;
+              *t *= factor;
+            }
+            x_volume = 0.0;
+            pixel = 0.0;
+            next_col = 0;
+            t++;
+          }
+          if (s->w < 255.0)
+            x_volume += x_scale;
+          pixel += x_scale * *s;
+          x_span -= x_scale;
+        }
+        s++;
+      }
+      if (x_span > 0.0) {
+        s--;
+        if (s->w < 255.0)
+          x_volume += x_scale;
+        pixel += x_span * *s;
+      }
+      if (!next_col && ((t - result) < filteredColumns)) {
+        t->x = pixel.x > 255.0 ? 255.0 : pixel.x;
+        t->y = pixel.y > 255.0 ? 255.0 : pixel.y;
+        t->z = pixel.z > 255.0 ? 255.0 : pixel.z;
+        t->w = pixel.w > 255.0 ? 255.0 : pixel.w;
+      }
+      t = result;
+    }
+
+    for (int i = 0; i < dst_local_w; ++i) {
+      int filtered_x = x / get_local_size(0) * dst_local_w + i;
+      int filtered_y = y / get_local_size(1) * dst_local_h + j;
+      WriteAllChannels(filteredImage, 4, filteredColumns, filtered_x, filtered_y, *(t + i));
+    }
+  }
+}
+)
+```
