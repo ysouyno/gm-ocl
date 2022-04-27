@@ -75,6 +75,8 @@
         - [如何写`ScaleImage()`的硬件加速函数（三）](#如何写scaleimage的硬件加速函数三)
     - [<2022-04-26 周二>](#2022-04-26-周二)
         - [如何写`ScaleImage()`的硬件加速函数（四）](#如何写scaleimage的硬件加速函数四)
+    - [<2022-04-27 周三>](#2022-04-27-周三)
+        - [如何写`ScaleImage()`的硬件加速函数（五）](#如何写scaleimage的硬件加速函数五)
 
 <!-- markdown-toc end -->
 
@@ -2537,6 +2539,272 @@ __kernel // __attribute__((reqd_work_group_size(256, 1, 1)))
       int filtered_x = x / get_local_size(0) * dst_local_w + i;
       int filtered_y = y / get_local_size(1) * dst_local_h + j;
       WriteAllChannels(filteredImage, 4, filteredColumns, filtered_x, filtered_y, *(t + i));
+    }
+  }
+}
+)
+```
+
+## <2022-04-27 周三>
+
+### 如何写`ScaleImage()`的硬件加速函数（五）
+
+晚上做梦都在一直想这事儿，早上花了一个多小时，小有成果。
+
+这里是参考`ResizeHorizontalFilter()`，居然把之前没有想明白的一些代码整清楚了：
+
+1. `accelerate.c:resizeHorizontalFilter()`中传参`gsize`和`lsize`的地方，是拿目标宽高进行计算的，我的脑海中却一直用原始宽高去理解
+
+``` c++
+gsize[0]=(resizedColumns+pixelPerWorkgroup-1)/pixelPerWorkgroup*
+  workgroupSize;
+gsize[1]=resizedRows;
+lsize[0]=workgroupSize;
+lsize[1]=1;
+outputReady=EnqueueOpenCLKernel(queue,horizontalKernel,2,
+  (const size_t *) NULL,gsize,lsize,image,filteredImage,MagickFalse,
+  exception);
+```
+
+2. 这里的用意是在`kernel`函数`ResizeHorizontalFilter()`中可以方便的使用`get_global_id(0)`和`get_local_id(0)`，不用像我在“[如何写`ScaleImage()`的硬件加速函数（四）](#如何写scaleimage的硬件加速函数四)”中那样去计算`dst_local_w`和`filtered_x`了
+3. 但是似乎这里引出了另外一个问题，那原始宽高怎么用于计算呢？答案就是`get_group_id(0)`
+
+贴上目前开发一半的代码，效果是：
+
+1. 原图缩小一倍，水平方向显示原图全部，但被压缩一半；垂直方向显示原图上半部
+2. 原图放大一倍，垂直方向显示原图全部，但被压缩一半；水平方向显示原图全部，但被拉长一倍
+
+附`scaleFilter()`和`ScaleFilter()`代码：
+
+``` c++
+static MagickBooleanType scaleFilter(MagickCLDevice device,
+  cl_command_queue queue,const Image *image,Image *filteredImage,
+  cl_mem imageBuffer,cl_uint matte_or_cmyk,cl_uint columns,cl_uint rows,
+  cl_mem scaledImageBuffer,cl_uint scaledColumns,cl_uint scaledRows,
+  ExceptionInfo *exception)
+{
+  cl_kernel
+    scaleKernel;
+
+  cl_int
+    status;
+
+  const unsigned int
+    workgroupSize = 256;
+
+  float
+    scale=1.0;
+
+  int
+    numCachedPixels;
+
+  MagickBooleanType
+    outputReady;
+
+  size_t
+    gammaAccumulatorLocalMemorySize,
+    gsize[2],
+    i,
+    imageCacheLocalMemorySize,
+    pixelAccumulatorLocalMemorySize,
+    lsize[2],
+    totalLocalMemorySize,
+    weightAccumulatorLocalMemorySize;
+
+  unsigned int
+    chunkSize,
+    pixelPerWorkgroup;
+
+  int
+    scale_ratio = 8; // related to the upper limit of zoom in?
+
+  scaleKernel=NULL;
+  outputReady=MagickFalse;
+
+  scale=1.0/scale; // TODO(ocl)
+
+  if (scaledColumns < workgroupSize)
+  {
+    chunkSize=32;
+    pixelPerWorkgroup=32;
+  }
+  else
+  {
+    chunkSize=workgroupSize;
+    pixelPerWorkgroup=workgroupSize;
+  }
+
+DisableMSCWarning(4127)
+  while(1)
+RestoreMSCWarning
+  {
+    /* calculate the local memory size needed per workgroup */
+    numCachedPixels=(int) pixelPerWorkgroup;
+    imageCacheLocalMemorySize=numCachedPixels*sizeof(CLQuantum)*4;
+    totalLocalMemorySize=imageCacheLocalMemorySize;
+
+    /* local size for the pixel accumulator */
+    pixelAccumulatorLocalMemorySize=chunkSize*sizeof(cl_float4);
+    totalLocalMemorySize+=pixelAccumulatorLocalMemorySize;
+
+    /* local memory size for the weight accumulator */
+    weightAccumulatorLocalMemorySize=chunkSize*sizeof(float);
+    totalLocalMemorySize+=weightAccumulatorLocalMemorySize;
+
+    /* local memory size for the gamma accumulator */
+    gammaAccumulatorLocalMemorySize=chunkSize*sizeof(float);
+    totalLocalMemorySize+=gammaAccumulatorLocalMemorySize;
+
+    if (totalLocalMemorySize <= device->local_memory_size)
+      break;
+    else
+    {
+      pixelPerWorkgroup=pixelPerWorkgroup/2;
+      chunkSize=chunkSize/2;
+      if ((pixelPerWorkgroup == 0) || (chunkSize == 0))
+      {
+        /* quit, fallback to CPU */
+        goto cleanup;
+      }
+    }
+  }
+
+  scaleKernel=AcquireOpenCLKernel(device,"ScaleFilter");
+  if (scaleKernel == (cl_kernel) NULL)
+  {
+    (void) OpenCLThrowMagickException(device,exception,GetMagickModule(),
+      ResourceLimitWarning,"AcquireOpenCLKernel failed.", ".");
+    goto cleanup;
+  }
+
+  i=0;
+  status =SetOpenCLKernelArg(scaleKernel,i++,sizeof(cl_mem),(void*)&imageBuffer);
+  status|=SetOpenCLKernelArg(scaleKernel,i++,sizeof(cl_uint),(void*)&matte_or_cmyk);
+  status|=SetOpenCLKernelArg(scaleKernel,i++,sizeof(cl_uint),(void*)&columns);
+  status|=SetOpenCLKernelArg(scaleKernel,i++,sizeof(cl_uint),(void*)&rows);
+  status|=SetOpenCLKernelArg(scaleKernel,i++,sizeof(cl_mem),(void*)&scaledImageBuffer);
+  status|=SetOpenCLKernelArg(scaleKernel,i++,sizeof(cl_uint),(void*)&scaledColumns);
+  status|=SetOpenCLKernelArg(scaleKernel,i++,sizeof(cl_uint),(void*)&scaledRows);
+  status|=SetOpenCLKernelArg(scaleKernel,i++,sizeof(float),(void*)&scale);
+  status|=SetOpenCLKernelArg(scaleKernel,i++,imageCacheLocalMemorySize,NULL);
+  status|=SetOpenCLKernelArg(scaleKernel,i++,sizeof(int),&numCachedPixels);
+  status|=SetOpenCLKernelArg(scaleKernel,i++,sizeof(unsigned int),&pixelPerWorkgroup);
+  status|=SetOpenCLKernelArg(scaleKernel,i++,sizeof(unsigned int),&chunkSize);
+  status|=SetOpenCLKernelArg(scaleKernel,i++,pixelAccumulatorLocalMemorySize,NULL);
+  status|=SetOpenCLKernelArg(scaleKernel,i++,weightAccumulatorLocalMemorySize,NULL);
+  status|=SetOpenCLKernelArg(scaleKernel,i++,gammaAccumulatorLocalMemorySize,NULL);
+  status|=SetOpenCLKernelArg(scaleKernel,i++,sizeof(int),&scale_ratio);
+
+  if (status != CL_SUCCESS)
+  {
+    (void) OpenCLThrowMagickException(device,exception,GetMagickModule(),
+      ResourceLimitWarning,"SetOpenCLKernelArg failed.",".");
+    goto cleanup;
+  }
+
+  gsize[0] = (scaledColumns + pixelPerWorkgroup - 1) / pixelPerWorkgroup *
+    workgroupSize;
+  gsize[1] = scaledRows;
+  lsize[0] = workgroupSize;
+  lsize[1] = 1;
+  outputReady=EnqueueOpenCLKernel(queue,scaleKernel,2,
+    (const size_t *) NULL,gsize,(Image *)NULL,image,filteredImage,MagickFalse,
+    exception);
+
+cleanup:
+
+  if (scaleKernel != (cl_kernel) NULL)
+    ReleaseOpenCLKernel(scaleKernel);
+
+  return(outputReady);
+}
+```
+
+``` c++
+STRINGIFY(
+__kernel __attribute__((reqd_work_group_size(256, 1, 1)))
+  void ScaleFilter(const __global CLQuantum *inputImage, const unsigned int matte_or_cmyk,
+    const unsigned int inputColumns, const unsigned int inputRows, __global CLQuantum *filteredImage,
+    const unsigned int filteredColumns, const unsigned int filteredRows,
+    const float resizeFilterScale,
+    __local CLQuantum *inputImageCache, const int numCachedPixels,
+    const unsigned int pixelPerWorkgroup, const unsigned int pixelChunkSize,
+    __local float4* outputPixelCache, __local float* densityCache, __local float* gammaCache,
+    const int scale_ratio)
+{
+  // calculate the range of resized image pixels computed by this workgroup
+  const unsigned int startX = get_group_id(0) * pixelPerWorkgroup;
+  const unsigned int stopX = MagickMin(startX + pixelPerWorkgroup, filteredColumns);
+  const unsigned int actualNumPixelToCompute = stopX - startX;
+
+  float xFactor = (float)filteredColumns / inputColumns;
+
+  // calculate the range of input image pixels to cache
+  const int cacheRangeStartX = MagickMax((int)((startX + 0.5f) / xFactor), (int)(0));
+  const int cacheRangeEndX = MagickMin((int)(cacheRangeStartX + numCachedPixels), (int)inputColumns);
+
+  // cache the input pixels into local memory
+  const unsigned int y = get_global_id(1);
+  const unsigned int pos = getPixelIndex(4, inputColumns, cacheRangeStartX, y);
+  const unsigned int num_elements = (cacheRangeEndX - cacheRangeStartX) * 4 * scale_ratio;
+  event_t e = async_work_group_copy(inputImageCache, inputImage + pos, num_elements, 0);
+  wait_group_events(1, &e);
+
+  unsigned int totalNumChunks = (actualNumPixelToCompute + pixelChunkSize - 1) / pixelChunkSize;
+  for (unsigned int chunk = 0; chunk < totalNumChunks; chunk++)
+  {
+    const unsigned int chunkStartX = startX + chunk * pixelChunkSize;
+    const unsigned int chunkStopX = MagickMin(chunkStartX + pixelChunkSize, stopX);
+    const unsigned int actualNumPixelInThisChunk = chunkStopX - chunkStartX;
+
+    // determine which resized pixel computed by this workitem
+    const unsigned int itemID = get_local_id(0);
+    const unsigned int numItems = getNumWorkItemsPerPixel(actualNumPixelInThisChunk, get_local_size(0));
+
+    const int pixelIndex = pixelToCompute(itemID, actualNumPixelInThisChunk, get_local_size(0));
+
+    float4 filteredPixel = (float4)0.0f;
+
+    // -1 means this workitem doesn't participate in the computation
+    if (pixelIndex != -1)
+    {
+      // x coordinated of the resized pixel computed by this workitem
+      const int x = chunkStartX + pixelIndex;
+
+      // calculate how many steps required for this pixel
+      const float bisect = (x + 0.5) / xFactor + MagickEpsilon;
+      const unsigned int start = (unsigned int)MagickMax(bisect, 0.0f);
+      const unsigned int stop = (unsigned int)MagickMin(bisect + 1, (float)inputColumns);
+      const unsigned int n = stop - start;
+
+      // calculate how many steps this workitem will contribute
+      unsigned int numStepsPerWorkItem = n / numItems;
+      numStepsPerWorkItem += ((numItems * numStepsPerWorkItem) == n ? 0 : 1);
+
+      const unsigned int startStep = (itemID % numItems) * numStepsPerWorkItem;
+      if (startStep < n)
+      {
+        const unsigned int stopStep = MagickMin(startStep + numStepsPerWorkItem, n);
+
+        unsigned int cacheIndex = start + startStep - cacheRangeStartX;
+        for (unsigned int i = startStep; i < stopStep; i++, cacheIndex++)
+        {
+          float4 cp = (float4)0.0f;
+
+          __local CLQuantum* p = inputImageCache + (cacheIndex * 4);
+          cp.x = (float)*(p);
+          cp.y = (float)*(p + 1);
+          cp.z = (float)*(p + 2);
+          cp.w = (float)*(p + 3);
+
+          filteredPixel += cp;
+        }
+      }
+    }
+
+    if (itemID < actualNumPixelInThisChunk)
+    {
+      WriteAllChannels(filteredImage, 4, filteredColumns, chunkStartX + itemID, y, filteredPixel);
     }
   }
 }
