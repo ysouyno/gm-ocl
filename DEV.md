@@ -78,6 +78,8 @@
     - [<2022-04-27 周三>](#2022-04-27-周三)
         - [如何写`ScaleImage()`的硬件加速函数（五）](#如何写scaleimage的硬件加速函数五)
         - [如何写`ScaleImage()`的硬件加速函数（六）](#如何写scaleimage的硬件加速函数六)
+    - [<2022-04-28 周四>](#2022-04-28-周四)
+        - [如何写`ScaleImage()`的硬件加速函数（七）](#如何写scaleimage的硬件加速函数七)
 
 <!-- markdown-toc end -->
 
@@ -2955,7 +2957,7 @@ DisableMSCWarning(4127)
 RestoreMSCWarning
   {
     /* calculate the local memory size needed per workgroup */
-    numCachedPixels=(int) ceil(pixelPerWorkgroup-1)/scale; // TODO(ocl)
+    numCachedPixels=(int) ceil((pixelPerWorkgroup-1)/scale+2*(0.5+MagickEpsilon)); // TODO(ocl)
     imageCacheLocalMemorySize=numCachedPixels*sizeof(CLQuantum)*4;
     totalLocalMemorySize=imageCacheLocalMemorySize;
 
@@ -3118,6 +3120,138 @@ __kernel __attribute__((reqd_work_group_size(256, 1, 1)))
 
     if (itemID < actualNumPixelInThisChunk)
     {
+      WriteAllChannels(filteredImage, 4, filteredColumns, chunkStartX + itemID, y, filteredPixel);
+    }
+  }
+}
+)
+```
+
+## <2022-04-28 周四>
+
+### 如何写`ScaleImage()`的硬件加速函数（七）
+
+其实“[如何写`ScaleImage()`的硬件加速函数（六）](#如何写scaleimage的硬件加速函数六)”的实现就是一个`ResizeHorizontalFilter()`将`y`改成`y / xFactor`的精简版，并不是`ScaleImage()`的硬件加速函数。虽然它不是，但至少省掉了`ResizeVerticalFilter()`的调用，速度上更快了。
+
+但是目前发现的问题还是竖条纹，连续多次缩小一倍，最终图片被黑色竖条纹全部覆盖住，不断缩小或者放大，右侧会出现密集竖条纹，等等等的问题啦。
+
+经过分析，黑色竖纹的产生原因是因为`kernel`函数`ScaleFilter()`的最内层的循环没有执行，导致将初始值`0.0f`赋进了目标地址。
+
+``` c++
+for (unsigned int i = startStep; i < stopStep; i++, cacheIndex++)
+{
+  float4 cp = (float4)0.0f;
+
+  __local CLQuantum* p = inputImageCache + (cacheIndex * 4);
+  cp.x = (float)*(p);
+  cp.y = (float)*(p + 1);
+  cp.z = (float)*(p + 2);
+  cp.w = (float)*(p + 3);
+
+  filteredPixel += cp;
+}
+```
+
+可以这样解决：
+
+``` c++
+STRINGIFY(
+  __kernel __attribute__((reqd_work_group_size(256, 1, 1)))
+  void ScaleFilter(const __global CLQuantum* inputImage, const unsigned int matte_or_cmyk,
+    const unsigned int inputColumns, const unsigned int inputRows, __global CLQuantum* filteredImage,
+    const unsigned int filteredColumns, const unsigned int filteredRows,
+    const float resizeFilterScale,
+    __local CLQuantum* inputImageCache, const int numCachedPixels,
+    const unsigned int pixelPerWorkgroup, const unsigned int pixelChunkSize,
+    __local float4* outputPixelCache, __local float* densityCache, __local float* gammaCache)
+{
+  // calculate the range of resized image pixels computed by this workgroup
+  const unsigned int startX = get_group_id(0) * pixelPerWorkgroup;
+  const unsigned int stopX = MagickMin(startX + pixelPerWorkgroup, filteredColumns);
+  const unsigned int actualNumPixelToCompute = stopX - startX;
+
+  float xFactor = (float)filteredColumns / inputColumns;
+
+  // calculate the range of input image pixels to cache
+  const int cacheRangeStartX = MagickMax((int)((startX + 0.5f) / xFactor), (int)(0));
+  const int cacheRangeEndX = MagickMin((int)(cacheRangeStartX + numCachedPixels), (int)inputColumns);
+
+  // cache the input pixels into local memory
+  const unsigned int y = get_global_id(1);
+  const unsigned int pos = getPixelIndex(4, inputColumns, cacheRangeStartX, y / xFactor);
+  const unsigned int num_elements = (cacheRangeEndX - cacheRangeStartX) * 4;
+  event_t e = async_work_group_copy(inputImageCache, inputImage + pos, num_elements, 0);
+  wait_group_events(1, &e);
+
+  unsigned int totalNumChunks = (actualNumPixelToCompute + pixelChunkSize - 1) / pixelChunkSize;
+  for (unsigned int chunk = 0; chunk < totalNumChunks; chunk++)
+  {
+    const unsigned int chunkStartX = startX + chunk * pixelChunkSize;
+    const unsigned int chunkStopX = MagickMin(chunkStartX + pixelChunkSize, stopX);
+    const unsigned int actualNumPixelInThisChunk = chunkStopX - chunkStartX;
+
+    // determine which resized pixel computed by this workitem
+    const unsigned int itemID = get_local_id(0);
+    const unsigned int numItems = getNumWorkItemsPerPixel(actualNumPixelInThisChunk, get_local_size(0));
+
+    const int pixelIndex = pixelToCompute(itemID, actualNumPixelInThisChunk, get_local_size(0));
+
+    float4 filteredPixel = (float4)0.0f;
+
+    // -1 means this workitem doesn't participate in the computation
+    if (pixelIndex != -1)
+    {
+      // x coordinated of the resized pixel computed by this workitem
+      const int x = chunkStartX + pixelIndex;
+
+      // calculate how many steps required for this pixel
+      const float bisect = (x + 0.5) / xFactor + MagickEpsilon;
+      const unsigned int start = (unsigned int)MagickMax(bisect, 0.0f);
+      const unsigned int stop = (unsigned int)MagickMin(bisect + 1, (float)inputColumns);
+      const unsigned int n = stop - start;
+
+      // calculate how many steps this workitem will contribute
+      unsigned int numStepsPerWorkItem = n / numItems;
+      numStepsPerWorkItem += ((numItems * numStepsPerWorkItem) == n ? 0 : 1);
+
+      const unsigned int startStep = (itemID % numItems) * numStepsPerWorkItem;
+      if (startStep < n)
+      {
+        const unsigned int stopStep = MagickMin(startStep + numStepsPerWorkItem, n);
+
+        unsigned int cacheIndex = start + startStep - cacheRangeStartX;
+        for (unsigned int i = startStep; i < stopStep; i++, cacheIndex++)
+        {
+          float4 cp = (float4)0.0f;
+
+          __local CLQuantum* p = inputImageCache + (cacheIndex * 4);
+          cp.x = (float)*(p);
+          cp.y = (float)*(p + 1);
+          cp.z = (float)*(p + 2);
+          cp.w = (float)*(p + 3);
+
+          filteredPixel += cp;
+        }
+      }
+    }
+
+    if (itemID < actualNumPixelInThisChunk) {
+      outputPixelCache[itemID] = (float4)0.0f;
+    }
+    barrier(CLK_LOCAL_MEM_FENCE);
+
+    for (unsigned int i = 0; i < numItems; i++) {
+      if (pixelIndex != -1) {
+        if (itemID % numItems == i) {
+          outputPixelCache[pixelIndex] += filteredPixel;
+        }
+      }
+      barrier(CLK_LOCAL_MEM_FENCE);
+    }
+
+    if (itemID < actualNumPixelInThisChunk)
+    {
+      float4 filteredPixel = outputPixelCache[itemID];
       WriteAllChannels(filteredImage, 4, filteredColumns, chunkStartX + itemID, y, filteredPixel);
     }
   }
