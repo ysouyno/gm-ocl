@@ -3258,3 +3258,53 @@ STRINGIFY(
 }
 )
 ```
+
+测试了一下性能，感觉提升不少（原图缩小一半，共三次操作，原图连续放大一倍两次，共三次操作）：
+
+`ScaleImage()`加速版本：
+
+``` text
+20220428104719 0:3.229821  1.672 11552 opencl.c AcquireOpenCLKernel 744 Accelerate Event Using kernel: ScaleFilter
+20220428104719 0:3.230185  1.672 11552 resize.c ScaleImage 1764 Accelerate Event accelerate scale: 1360
+20220428104725 0:9.628057  1.875 11552 opencl.c AcquireOpenCLKernel 744 Accelerate Event Using kernel: ScaleFilter
+20220428104725 0:9.628288  1.875 11552 resize.c ScaleImage 1764 Accelerate Event accelerate scale: 0
+20220428104732 0:16.078872 2.234 11552 opencl.c AcquireOpenCLKernel 744 Accelerate Event Using kernel: ScaleFilter
+20220428104732 0:16.079057 2.234 11552 resize.c ScaleImage 1764 Accelerate Event accelerate scale: 0
+20220428104740 0:24.253815 2.484 11552 opencl.c AcquireOpenCLKernel 744 Accelerate Event Using kernel: ScaleFilter
+20220428104740 0:24.254118 2.484 11552 resize.c ScaleImage 1764 Accelerate Event accelerate scale: 0
+20220428104749 0:33.888819 2.875 11552 opencl.c AcquireOpenCLKernel 744 Accelerate Event Using kernel: ScaleFilter
+20220428104749 0:33.889007 2.875 11552 resize.c ScaleImage 1764 Accelerate Event accelerate scale: 31
+20220428104752 0:36.173104 3.047 11552 opencl.c AcquireOpenCLKernel 744 Accelerate Event Using kernel: ScaleFilter
+20220428104752 0:36.173301 3.047 11552 resize.c ScaleImage 1764 Accelerate Event accelerate scale: 156
+20220428104800 0:44.287153 3.469 11552 opencl.c AcquireOpenCLKernel 744 Accelerate Event Using kernel: ScaleFilter
+20220428104800 0:44.287372 3.469 11552 resize.c ScaleImage 1764 Accelerate Event accelerate scale: 47
+20220428104801 0:45.546271 3.656 11552 opencl.c AcquireOpenCLKernel 744 Accelerate Event Using kernel: ScaleFilter
+20220428104801 0:45.546588 3.656 11552 resize.c ScaleImage 1764 Accelerate Event accelerate scale: 140
+20220428104806 0:49.973027 4.047 11552 opencl.c AcquireOpenCLKernel 744 Accelerate Event Using kernel: ScaleFilter
+20220428104806 0:49.973217 4.047 11552 resize.c ScaleImage 1764 Accelerate Event accelerate scale: 31
+20220428104806 0:50.640522 4.250 11552 opencl.c AcquireOpenCLKernel 744 Accelerate Event Using kernel: ScaleFilter
+20220428104806 0:50.640730 4.250 11552 resize.c ScaleImage 1764 Accelerate Event accelerate scale: 141
+```
+
+`ScaleImage()`原先版本：
+
+``` text
+20220428104934 0:1.982873  0.266 10052 resize.c ScaleImage 1770 Accelerate Event AccelerateScaleImage null
+20220428104934 0:2.040677  0.328 10052 resize.c ScaleImage 2116 Accelerate Event normal scale: 63
+20220428104940 0:7.854823  0.578 10052 resize.c ScaleImage 1770 Accelerate Event AccelerateScaleImage null
+20220428104940 0:7.913365  0.625 10052 resize.c ScaleImage 2116 Accelerate Event normal scale: 47
+20220428104944 0:11.896725 0.875 10052 resize.c ScaleImage 1770 Accelerate Event AccelerateScaleImage null
+20220428104944 0:11.956722 0.938 10052 resize.c ScaleImage 2116 Accelerate Event normal scale: 63
+20220428104951 0:18.070817 1.219 10052 resize.c ScaleImage 1770 Accelerate Event AccelerateScaleImage null
+20220428104951 0:18.378405 1.516 10052 resize.c ScaleImage 2116 Accelerate Event normal scale: 297
+20220428104952 0:19.394056 1.531 10052 resize.c ScaleImage 1770 Accelerate Event AccelerateScaleImage null
+20220428104953 0:20.634341 2.781 10052 resize.c ScaleImage 2116 Accelerate Event normal scale: 1250
+20220428104958 0:25.534006 3.063 10052 resize.c ScaleImage 1770 Accelerate Event AccelerateScaleImage null
+20220428104958 0:25.836584 3.375 10052 resize.c ScaleImage 2116 Accelerate Event normal scale: 312
+20220428104959 0:26.729520 3.406 10052 resize.c ScaleImage 1770 Accelerate Event AccelerateScaleImage null
+20220428105000 0:27.930533 4.609 10052 resize.c ScaleImage 2116 Accelerate Event normal scale: 1203
+20220428105011 0:38.879392 5.438 10052 resize.c ScaleImage 1770 Accelerate Event AccelerateScaleImage null
+20220428105012 0:39.210382 5.766 10052 resize.c ScaleImage 2116 Accelerate Event normal scale: 328
+20220428105012 0:39.872525 5.797 10052 resize.c ScaleImage 1770 Accelerate Event AccelerateScaleImage null
+20220428105014 0:41.176969 7.094 10052 resize.c ScaleImage 2116 Accelerate Event normal scale: 1297
+```
