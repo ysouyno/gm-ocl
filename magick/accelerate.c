@@ -824,7 +824,7 @@ static MagickBooleanType scaleFilter(MagickCLDevice device,
   scaleKernel=NULL;
   outputReady=MagickFalse;
 
-  scale=1.0/scale; // TODO(ocl)
+  scale=(float) scaledColumns/columns; // TODO(ocl)
 
   if (scaledColumns < workgroupSize)
   {
@@ -842,7 +842,7 @@ DisableMSCWarning(4127)
 RestoreMSCWarning
   {
     /* calculate the local memory size needed per workgroup */
-    numCachedPixels=(int) pixelPerWorkgroup;
+    numCachedPixels=(int) ceil((pixelPerWorkgroup-1)/scale+2*(0.5+MagickEpsilon));
     imageCacheLocalMemorySize=numCachedPixels*sizeof(CLQuantum)*4;
     totalLocalMemorySize=imageCacheLocalMemorySize;
 
@@ -904,10 +904,13 @@ RestoreMSCWarning
     goto cleanup;
   }
 
-  gsize[0]=image->columns;
-  gsize[1]=image->rows;
+  gsize[0]=(scaledColumns+pixelPerWorkgroup-1)/pixelPerWorkgroup*
+    workgroupSize;
+  gsize[1]=scaledRows;
+  lsize[0]=workgroupSize;
+  lsize[1]=1;
   outputReady=EnqueueOpenCLKernel(queue,scaleKernel,2,
-    (const size_t *) NULL,gsize,(Image *)NULL,image,filteredImage,MagickFalse,
+    (const size_t *) NULL,gsize,lsize,image,filteredImage,MagickFalse,
     exception);
 
 cleanup:

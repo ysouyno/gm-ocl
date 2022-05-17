@@ -3515,7 +3515,7 @@ OPENCL_ENDIF()
   )
 
   STRINGIFY(
-  __kernel // __attribute__((reqd_work_group_size(256, 1, 1)))
+    __kernel __attribute__((reqd_work_group_size(256, 1, 1)))
     void ScaleFilter(const __global CLQuantum *inputImage, const unsigned int matte_or_cmyk,
       const unsigned int inputColumns, const unsigned int inputRows, __global CLQuantum *filteredImage,
       const unsigned int filteredColumns, const unsigned int filteredRows,
@@ -3524,140 +3524,156 @@ OPENCL_ENDIF()
       const unsigned int pixelPerWorkgroup, const unsigned int pixelChunkSize,
       __local float4 *outputPixelCache, __local float *densityCache, __local float *gammaCache)
   {
-    const int x=get_global_id(0);
-    const int y=get_global_id(1);
-    const unsigned int columns=get_global_size(0);
-    int cx=x;
-    int cy=y;
+    // calculate the range of resized image pixels computed by this workgroup
+    const unsigned int startX = get_group_id(0) * pixelPerWorkgroup;
+    const unsigned int stopX = MagickMin(startX + pixelPerWorkgroup, filteredColumns);
+    const unsigned int actualNumPixelToCompute = stopX - startX;
 
-    float4 pixel=ReadAllChannels(inputImage,4,columns,x,cy++);
+    float xFactor = (float)filteredColumns / inputColumns;
 
-    float4 x_vector=0.0f;
-    float4 y_vector=0.0f;
-    float y_volumes=0.0f;
-    float4 pixel_tmp=0.0f;
-    float y_span=1.0f;
-    float y_scale=(float) filteredRows/inputRows;
-    // int number_rows=1;
-    unsigned int next_row=0;
-    float factor=0.0f;
+    // calculate the range of input image pixels to cache
+    const int cacheRangeStartX = MagickMax((int)((startX + 0.5f) / xFactor), (int)(0));
+    const int cacheRangeEndX = MagickMin((int)(cacheRangeStartX + numCachedPixels), (int)inputColumns);
 
-    unsigned int next_column=0;
-    float x_span=1.0f;
-    float x_scale=0.0f;
-    float x_volume=0.0f;
-    float4 pixel_res=0.0f;
+    // cache the input pixels into local memory
+    const unsigned int y = get_global_id(1);
+    const unsigned int pos = getPixelIndex(4, inputColumns, cacheRangeStartX, y / xFactor);
+    const unsigned int num_elements = (cacheRangeEndX - cacheRangeStartX) * 4;
+    event_t e = async_work_group_copy(inputImageCache, inputImage + pos, num_elements, 0);
+    wait_group_events(1, &e);
 
-    if (inputRows == filteredRows) {
-      x_vector=pixel;
-    }
-    else {
-      while (y_scale < y_span) {
-        // TODO(ocl) number_rows in kernel always lt inputRows
-        if (next_row/* && (number_rows < inputRows)*/) {
-          pixel=ReadAllChannels(inputImage,4,columns,x,cy++);
-          x_vector=pixel;
-          // number_rows++;
-        }
-        y_volumes+=y_scale;
-        y_vector+=y_scale*x_vector;
-        y_span-=y_scale;
-        y_scale=(float)filteredRows/inputRows;
-        next_row=1;
+    unsigned int totalNumChunks = (actualNumPixelToCompute + pixelChunkSize - 1) / pixelChunkSize;
+    for (unsigned int chunk = 0; chunk < totalNumChunks; chunk++)
+    {
+      const unsigned int chunkStartX = startX + chunk * pixelChunkSize;
+      const unsigned int chunkStopX = MagickMin(chunkStartX + pixelChunkSize, stopX);
+      const unsigned int actualNumPixelInThisChunk = chunkStopX - chunkStartX;
+
+      // determine which resized pixel computed by this workitem
+      const unsigned int itemID = get_local_id(0);
+      unsigned int local_idx = itemID;
+      const unsigned int numItems = getNumWorkItemsPerPixel(actualNumPixelInThisChunk, get_local_size(0));
+
+      const int pixelIndex = pixelToCompute(itemID, actualNumPixelInThisChunk, get_local_size(0));
+
+      float4 filteredPixel = (float4)0.0f;
+
+      if (itemID < actualNumPixelInThisChunk) {
+        outputPixelCache[itemID] = (float4)0.0f;
       }
-      if (next_row/* && (number_rows < inputRows)*/) {
-        pixel=ReadAllChannels(inputImage,4,columns,x,cy++);
-        x_vector=pixel;
-        // number_rows++;
-        next_row=0;
-      }
-      // barrier?
-      y_volumes+=y_span;
-      pixel_tmp=y_vector+y_span*x_vector;
-      if (y_volumes > 0.0 && y_volumes < 1.0) {
-        factor=1/y_volumes;
-        pixel_tmp*=factor;
-      }
-      pixel_tmp.x=pixel_tmp.x>255.0?255.0:pixel_tmp.x;
-      pixel_tmp.y=pixel_tmp.y>255.0?255.0:pixel_tmp.y;
-      pixel_tmp.z=pixel_tmp.z>255.0?255.0:pixel_tmp.z;
-      pixel_tmp.w=pixel_tmp.w>255.0?255.0:pixel_tmp.w;
-      x_vector=pixel_tmp;
-      y_vector=0.0;
-      y_volumes=0.0;
-      y_scale-=y_span;
-      if (y_scale <= 0) {
-        y_scale=(float) filteredRows/inputRows;
-        next_row=0;
-      }
-      y_span=1.0;
-    }
-    if (inputColumns == filteredColumns) {
-      pixel_res=x_vector;
-    }
-    else {
-      for (unsigned int idx = 0; idx < get_local_size(0); ++idx) {
-        // for s++ below
-        x_vector=ReadAllChannels(inputImage,4,columns,x,cy++); // TODO(ocl)
-        x_scale=filteredColumns/inputColumns;
-        while (x_scale >= x_span) {
-          if (next_column) {
-            if (x_volume > 0.0 && x_volume < 1.0) {
-              factor=1/x_volume;
-              pixel_res*=factor;
+      barrier(CLK_LOCAL_MEM_FENCE);
+
+      // -1 means this workitem doesn't participate in the computation
+      if (pixelIndex != -1)
+      {
+        // x coordinated of the resized pixel computed by this workitem
+        const int x = chunkStartX + pixelIndex;
+
+        // calculate how many steps required for this pixel
+        const float bisect = (x + 0.5) / xFactor + MagickEpsilon;
+        const unsigned int start = (unsigned int)MagickMax(bisect, 0.0f);
+        const unsigned int stop = (unsigned int)MagickMin(bisect + 1, (float)inputColumns);
+        const unsigned int n = stop - start;
+
+        // calculate how many steps this workitem will contribute
+        unsigned int numStepsPerWorkItem = n / numItems;
+        numStepsPerWorkItem += ((numItems * numStepsPerWorkItem) == n ? 0 : 1);
+
+        const unsigned int startStep = (itemID % numItems) * numStepsPerWorkItem;
+        if (startStep < n)
+        {
+          float x_scale = (float)filteredColumns / inputColumns;
+          float x_span = 1.0;
+          float x_volume = 0.0;
+          float factor = 0.0;
+          unsigned next_column = 0;
+
+          const unsigned int stopStep = MagickMin(startStep + numStepsPerWorkItem, n);
+
+          unsigned int cacheIndex = start + startStep - cacheRangeStartX;
+          for (unsigned int i = startStep; i < stopStep; i++, cacheIndex++)
+          {
+            float4 cp = (float4)0.0f;
+
+            __local CLQuantum* p = inputImageCache + (cacheIndex * 4);
+            cp.x = (float)*(p);
+            cp.y = (float)*(p + 1);
+            cp.z = (float)*(p + 2);
+            cp.w = (float)*(p + 3);
+
+            while (x_scale >= x_span) {
+              if (next_column) {
+                if (x_volume > 0.0 && x_volume < 1.0) {
+                  factor = 1 / x_volume;
+                  outputPixelCache[local_idx].x *= factor;
+                  outputPixelCache[local_idx].y *= factor;
+                  outputPixelCache[local_idx].z *= factor;
+                }
+                x_volume = 0.0;
+                filteredPixel = 0.0;
+                local_idx++;
+              }
+              if (cp.w < 255.0) {
+                x_volume += x_span;
+              }
+              filteredPixel += x_span * cp;
+              filteredPixel.x = filteredPixel.x > 255.0 ? 255.0 : filteredPixel.x;
+              filteredPixel.y = filteredPixel.y > 255.0 ? 255.0 : filteredPixel.y;
+              filteredPixel.z = filteredPixel.z > 255.0 ? 255.0 : filteredPixel.z;
+              filteredPixel.w = filteredPixel.w > 255.0 ? 255.0 : filteredPixel.w;
+              x_scale -= x_span;
+              x_span = 1.0;
+              next_column = 1;
             }
-            x_volume=0.0;
-          }
-          x_volume+=x_span;
-          pixel_tmp+=x_span*x_vector;
-          pixel_tmp.x=pixel_tmp.x>255.0?255.0:pixel_tmp.x;
-          pixel_tmp.y=pixel_tmp.y>255.0?255.0:pixel_tmp.y;
-          pixel_tmp.z=pixel_tmp.z>255.0?255.0:pixel_tmp.z;
-          pixel_tmp.w=pixel_tmp.w>255.0?255.0:pixel_tmp.w;
-          pixel_res=pixel_tmp;
-          x_scale-=x_span;
-          x_span=1.0;
-          next_column=1;
-        }
-        if (x_scale > 0.0) {
-          if (next_column) {
-            if (x_volume < 0.0 && x_volume < 1.0) {
-              factor=1/x_volume;
-              pixel_res*=factor;
+
+            if (x_scale > 0.0) {
+              if (next_column) {
+                if (x_volume > 0.0 && x_volume < 1.0) {
+                  factor = 1 / x_volume;
+                  outputPixelCache[local_idx].x *= factor;
+                  outputPixelCache[local_idx].y *= factor;
+                  outputPixelCache[local_idx].z *= factor;
+                }
+                x_volume = 0.0;
+                filteredPixel = 0.0;
+                next_column = 0;
+                local_idx++;
+              }
+              if (cp.w < 255.0)
+                x_volume += x_scale;
+              filteredPixel += x_scale * cp;
+              x_span -= x_scale;
             }
-            x_volume=0.0;
-            pixel_tmp=0.0;
-            next_column=0;
-            // t++; // TODO(ocl)
-            WriteAllChannels(filteredImage,4,filteredColumns,
-              convert_int_rte(cx++*(float) filteredColumns/inputColumns),
-              convert_int_rte(y*(float) filteredRows/inputRows),
-              pixel_res);
+
+            if (x_span > 0.0) {
+              if (cp.w < 255.0)
+                x_volume += x_span;
+              filteredPixel += x_span * cp;
+            }
+
+            filteredPixel.x = filteredPixel.x > 255.0 ? 255.0 : filteredPixel.x;
+            filteredPixel.y = filteredPixel.y > 255.0 ? 255.0 : filteredPixel.y;
+            filteredPixel.z = filteredPixel.z > 255.0 ? 255.0 : filteredPixel.z;
+            filteredPixel.w = filteredPixel.w > 255.0 ? 255.0 : filteredPixel.w;
           }
-          x_volume+=x_scale;
-          pixel_tmp+=x_scale*x_vector;
-          x_span-=x_scale;
         }
-        // s++; // TODO(ocl)
       }
-      if (x_span > 0.0) {
-        // s--; // TODO(ocl)
-        x_volume+=x_span;
-        pixel_tmp+=x_span*x_vector;
+
+      for (unsigned int i = 0; i < numItems; i++) {
+        if (pixelIndex != -1) {
+          if (itemID % numItems == i) {
+            outputPixelCache[pixelIndex] += filteredPixel;
+          }
+        }
+        barrier(CLK_LOCAL_MEM_FENCE);
       }
-      if (!next_column/* && TODO(ocl)*/) {
-        pixel_tmp.x=pixel_tmp.x>255.0?255.0:pixel_tmp.x;
-        pixel_tmp.y=pixel_tmp.y>255.0?255.0:pixel_tmp.y;
-        pixel_tmp.z=pixel_tmp.z>255.0?255.0:pixel_tmp.z;
-        pixel_tmp.w=pixel_tmp.w>255.0?255.0:pixel_tmp.w;
-        pixel_res=pixel_tmp;
+
+      if (itemID < actualNumPixelInThisChunk)
+      {
+        float4 filteredPixel = outputPixelCache[itemID];
+        WriteAllChannels(filteredImage, 4, filteredColumns, chunkStartX + itemID, y, filteredPixel);
       }
     }
-
-    // pixel_res/=4.5;
-    int filtered_x=convert_int_rte(x*(float) filteredColumns/inputColumns);
-    int filtered_y=convert_int_rte(y*(float) filteredRows/inputRows);
-    WriteAllChannels(filteredImage,4,filteredColumns,filtered_x,filtered_y,pixel_res);
   }
   )
 
