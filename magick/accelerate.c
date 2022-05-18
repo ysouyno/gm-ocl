@@ -799,7 +799,7 @@ static MagickBooleanType scaleFilter(MagickCLDevice device,
     workgroupSize = 256;
 
   float
-    scale;
+    xFactor;
 
   int
     numCachedPixels;
@@ -808,14 +808,12 @@ static MagickBooleanType scaleFilter(MagickCLDevice device,
     outputReady;
 
   size_t
-    gammaAccumulatorLocalMemorySize,
     gsize[2],
     i,
     imageCacheLocalMemorySize,
     pixelAccumulatorLocalMemorySize,
     lsize[2],
-    totalLocalMemorySize,
-    weightAccumulatorLocalMemorySize;
+    totalLocalMemorySize;
 
   unsigned int
     chunkSize,
@@ -824,7 +822,7 @@ static MagickBooleanType scaleFilter(MagickCLDevice device,
   scaleKernel=NULL;
   outputReady=MagickFalse;
 
-  scale=(float) scaledColumns/columns; // TODO(ocl)
+  xFactor=(float) scaledColumns/columns;
 
   if (scaledColumns < workgroupSize)
   {
@@ -842,21 +840,13 @@ DisableMSCWarning(4127)
 RestoreMSCWarning
   {
     /* calculate the local memory size needed per workgroup */
-    numCachedPixels=(int) ceil((pixelPerWorkgroup-1)/scale+2*(0.5+MagickEpsilon));
+    numCachedPixels=(int) ceil((pixelPerWorkgroup-1)/xFactor+2*(0.5+MagickEpsilon));
     imageCacheLocalMemorySize=numCachedPixels*sizeof(CLQuantum)*4;
     totalLocalMemorySize=imageCacheLocalMemorySize;
 
     /* local size for the pixel accumulator */
     pixelAccumulatorLocalMemorySize=chunkSize*sizeof(cl_float4);
     totalLocalMemorySize+=pixelAccumulatorLocalMemorySize;
-
-    /* local memory size for the weight accumulator */
-    weightAccumulatorLocalMemorySize=chunkSize*sizeof(float);
-    totalLocalMemorySize+=weightAccumulatorLocalMemorySize;
-
-    /* local memory size for the gamma accumulator */
-    gammaAccumulatorLocalMemorySize=chunkSize*sizeof(float);
-    totalLocalMemorySize+=gammaAccumulatorLocalMemorySize;
 
     if (totalLocalMemorySize <= device->local_memory_size)
       break;
@@ -888,14 +878,11 @@ RestoreMSCWarning
   status|=SetOpenCLKernelArg(scaleKernel,i++,sizeof(cl_mem),(void*)&scaledImageBuffer);
   status|=SetOpenCLKernelArg(scaleKernel,i++,sizeof(cl_uint),(void*)&scaledColumns);
   status|=SetOpenCLKernelArg(scaleKernel,i++,sizeof(cl_uint),(void*)&scaledRows);
-  status|=SetOpenCLKernelArg(scaleKernel,i++,sizeof(float),(void*)&scale);
   status|=SetOpenCLKernelArg(scaleKernel,i++,imageCacheLocalMemorySize,NULL);
   status|=SetOpenCLKernelArg(scaleKernel,i++,sizeof(int),&numCachedPixels);
   status|=SetOpenCLKernelArg(scaleKernel,i++,sizeof(unsigned int),&pixelPerWorkgroup);
   status|=SetOpenCLKernelArg(scaleKernel,i++,sizeof(unsigned int),&chunkSize);
   status|=SetOpenCLKernelArg(scaleKernel,i++,pixelAccumulatorLocalMemorySize,NULL);
-  status|=SetOpenCLKernelArg(scaleKernel,i++,weightAccumulatorLocalMemorySize,NULL);
-  status|=SetOpenCLKernelArg(scaleKernel,i++,gammaAccumulatorLocalMemorySize,NULL);
 
   if (status != CL_SUCCESS)
   {

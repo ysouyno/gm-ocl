@@ -3519,10 +3519,9 @@ OPENCL_ENDIF()
     void ScaleFilter(const __global CLQuantum *inputImage, const unsigned int matte_or_cmyk,
       const unsigned int inputColumns, const unsigned int inputRows, __global CLQuantum *filteredImage,
       const unsigned int filteredColumns, const unsigned int filteredRows,
-      const float resizeFilterScale,
       __local CLQuantum *inputImageCache, const int numCachedPixels,
       const unsigned int pixelPerWorkgroup, const unsigned int pixelChunkSize,
-      __local float4 *outputPixelCache, __local float *densityCache, __local float *gammaCache)
+      __local float4 *outputPixelCache)
   {
     // calculate the range of resized image pixels computed by this workgroup
     const unsigned int startX = get_group_id(0) * pixelPerWorkgroup;
