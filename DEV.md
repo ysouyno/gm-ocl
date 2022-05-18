@@ -86,6 +86,8 @@
         - [如何写`ScaleImage()`的硬件加速函数（十）](#如何写scaleimage的硬件加速函数十)
     - [<2022-05-06 周五>](#2022-05-06-周五)
         - [如何写`ScaleImage()`的硬件加速函数（十一）](#如何写scaleimage的硬件加速函数十一)
+    - [<2022-05-18 Wed>](#2022-05-18-wed)
+        - [`AccelerateScaleImage()`和`AccelerateResizeImage()`的性能测试](#acceleratescaleimage和accelerateresizeimage的性能测试)
 
 <!-- markdown-toc end -->
 
@@ -4049,3 +4051,49 @@ STRINGIFY(
 3. 有一个顾虑需不需要考虑？因为`local`内存是对应一个`work-group`的，它的各`work-item`共享这片`local`内存，那每个`work-item`是不是都会按照`ScaleImage()`的算法处理一次`Y`方向的缩放？
 4. 目前看好像不要考虑这个问题，即不影响结果也不影响效率
 5. 同时也在考虑，可不可以在进入`kernel`函数之前就缩放好`Y`方向呢？
+
+## <2022-05-18 Wed>
+
+### `AccelerateScaleImage()`和`AccelerateResizeImage()`的性能测试
+
+迭代`100`次，缩小图片`50%`，如下：
+
+``` shellsession
+[ysouyno@arch gm-ocl]$ MAGICK_OCL_DEVICE=true gm benchmark -iterations 100 convert ~/temp/bg1a.jpg -scale 50x50% ~/temp/out.jpg
+Results: 8 threads 100 iter 4.92s user 5.146311s total 19.431 iter/s 20.325 iter/cpu
+[ysouyno@arch gm-ocl]$ gm benchmark -iterations 100 convert ~/temp/bg1a.jpg -scale 50x50% ~/temp/out.jpg
+Results: 8 threads 100 iter 5.88s user 5.887496s total 16.985 iter/s 17.007 iter/cpu
+```
+
+迭代`100`次，放大图片`200%`，如下：
+
+``` shellsession
+[ysouyno@arch gm-ocl]$ MAGICK_OCL_DEVICE=true gm benchmark -iterations 100 convert ~/temp/bg1a.jpg -scale 200x200% ~/temp/out.jpg
+Results: 8 threads 100 iter 17.73s user 15.998019s total 6.251 iter/s 5.640 iter/cpu
+[ysouyno@arch gm-ocl]$ MAGICK_OCL_DEVICE=true gm benchmark -iterations 100 convert ~/temp/bg1a.jpg -scale 200x200% ~/temp/out.jpg
+Results: 8 threads 100 iter 17.61s user 15.812017s total 6.324 iter/s 5.679 iter/cpu
+[ysouyno@arch gm-ocl]$ gm benchmark -iterations 100 convert ~/temp/bg1a.jpg -scale 200x200% ~/temp/out.jpg
+Results: 8 threads 100 iter 23.15s user 23.203446s total 4.310 iter/s 4.320 iter/cpu
+[ysouyno@arch gm-ocl]$ gm benchmark -iterations 100 convert ~/temp/bg1a.jpg -scale 200x200% ~/temp/out.jpg
+Results: 8 threads 100 iter 23.57s user 23.621860s total 4.233 iter/s 4.243 iter/cpu
+```
+
+主要看`total`前面的值，是运行总时间。同样的方法再对比一下`AccelerateResizeImage()`。
+
+迭代`100`次，缩小图片`50%`，如下：
+
+``` shellsession
+[ysouyno@arch gm-ocl]$ MAGICK_OCL_DEVICE=true gm benchmark -iterations 100 convert ~/temp/bg1a.jpg -resize 50x50% ~/temp/out.jpg
+Results: 8 threads 100 iter 11.28s user 8.047808s total 12.426 iter/s 8.865 iter/cpu
+[ysouyno@arch gm-ocl]$ gm benchmark -iterations 100 convert ~/temp/bg1a.jpg -resize 50x50% ~/temp/out.jpg
+Results: 8 threads 100 iter 44.43s user 6.364194s total 15.713 iter/s 2.251 iter/cpu
+```
+
+迭代`100`次，放大图片`200%`，如下：
+
+``` shellsession
+[ysouyno@arch gm-ocl]$ MAGICK_OCL_DEVICE=true gm benchmark -iterations 100 convert ~/temp/bg1a.jpg -resize 200x200% ~/temp/out.jpg
+Results: 8 threads 100 iter 24.67s user 18.713505s total 5.344 iter/s 4.054 iter/cpu
+[ysouyno@arch gm-ocl]$ gm benchmark -iterations 100 convert ~/temp/bg1a.jpg -resize 200x200% ~/temp/out.jpg
+Results: 8 threads 100 iter 160.27s user 26.635967s total 3.754 iter/s 0.624 iter/cpu
+```

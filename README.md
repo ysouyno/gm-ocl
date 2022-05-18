@@ -30,3 +30,12 @@ $ ./configure --enable-opencl
 From `FAQ` of `gm`: "[How often does GraphicsMagick pick up new code from ImageMagick?](http://www.graphicsmagick.org/FAQ.html#how-often-does-graphicsmagick-pick-up-new-code-from-imagemagick)" to learn that `im` currently uses the `Apache` protocol, which focuses on patent protection.
 
 So here is attached [`Copyright.txt` for `gm`](Copyright.txt), [`LICENSE` for `im`](LICENSE.ImageMagick) and [`NOTICE` for `im`](NOTICE.ImageMagick ), click to view details.
+
+## Benchmark
+
+|               | Iterations | Zoom in/out | Disable OpenCL | Enable OpenCL |
+| :--           |        :-: |         :-: | :-:            | :-:           |
+| ResizeImage() |        100 |         50% | 6.36s          | 8.05s         |
+| ResizeImage() |        100 |        200% | 26.6s          | 18.7s         |
+| ScaleImage()  |        100 |         50% | 5.89s          | 5.15s         |
+| ScaleImage()  |        100 |        200% | 23.6s          | 15.8s         |
